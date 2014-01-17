@@ -887,13 +887,13 @@ en:
   invite_forum_mailer:
     subject_template: "[%{site_name}] %{invitee_name} invited you to join %{site_name}"
     text_body_template: |
-      %{invitee_name} invited you to %{site_name}.
+      %{invitee_name} hat dich gerade ins unglaubliche und highly awesome web 3.1 Forum %{site_name} eingeladen.
 
-      If you're interested, click the link below to join:
+      Falls du keinen Bock darauf hast, dass dir die NSA den letzten Rest privacy aus den Facebook accounts saugt und du vielleicht auch mal was nicht-jugendfreies oder halblegales posten willst, und dich dabei auch noch mit anderen Leuten aus dem Erdinger/Münchner Umfeld herumschlagen willst, dann schau mal rein.
 
       [Visit %{site_name}][1]
 
-      You were invited by a trusted user, so you'll be able to join immediately, without needing to log in.
+      Du wurdest von einem trusted user eingeladen, kannst also sofort auf das Forum zugreifen ohne dich einloggen zu müssen. Aber vielleicht änderst du noch dein passwort, vielleicht nicht gleich auf "asdfgh".
 
       [1]: %{invite_link}
 
