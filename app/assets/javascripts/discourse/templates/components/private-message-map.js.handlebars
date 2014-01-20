@@ -1,11 +1,11 @@
 <h3><i class='fa fa-envelope'></i> {{i18n private_message_info.title}}</h3>
 <div class='participants clearfix'>
-  {{#groupedEach details.allowed_groups}}
+  {{#groupedEach view.details.allowed_groups}}
     <div class='user group'>
       #{{unbound name}}
     </div>
   {{/groupedEach}}
-  {{#groupedEach details.allowed_users}}
+  {{#groupedEach view.details.allowed_users}}
     <div class='user'>
       {{#link-to 'user' this}}
         {{avatar this imageSize="small"}}
@@ -19,7 +19,7 @@
     </div>
   {{/groupedEach}}
 </div>
-{{#if details.can_invite_to}}
+{{#if view.details.can_invite_to}}
   <div class='controls'>
     <button class='btn' {{action showPrivateInvite}}>{{i18n private_message_info.invite}}</button>
   </div>
