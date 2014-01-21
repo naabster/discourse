@@ -6,11 +6,16 @@
   @namespace Discourse
   @module Discourse
 **/
-Discourse.PrivateMessageMapComponent = Ember.Component.extend({
+Discourse.PrivateMessageMapComponent = Ember.View.extend({
   templateName: 'components/private-message-map',
   tagName: 'section',
   classNames: ['information'],
   details: Em.computed.alias('topic.details'),
+
+  init: function() {
+    this._super();
+    this.set('context', this);
+  },
 
   actions: {
     removeAllowedUser: function(user) {
@@ -28,7 +33,7 @@ Discourse.PrivateMessageMapComponent = Ember.Component.extend({
     },
 
     showPrivateInvite: function() {
-      this.sendAction('showPrivateInviteAction');
+      this.get('controller').send('showPrivateInviteAction');
     }
   }
 
