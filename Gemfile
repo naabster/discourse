@@ -72,8 +72,8 @@ gem 'redis', :require => ["redis", "redis/connection/hiredis"]
 gem 'active_model_serializers'
 
 
-# we had issues with latest, stick to the rev till we figure this out
-# PR that makes it all hang together welcome
+gem 'onebox'
+
 gem 'ember-rails'
 gem 'ember-source', '~> 1.2.0.1'
 gem 'handlebars-source', '~> 1.1.2'
@@ -84,7 +84,6 @@ gem 'rails_multisite', path: 'vendor/gems/rails_multisite'
 
 gem 'redcarpet', require: false
 gem 'airbrake', '3.1.2', require: false # errbit is broken with 3.1.3 for now
-gem 'sidetiq', '>= 0.3.6'
 gem 'eventmachine'
 gem 'fast_xs'
 
@@ -115,11 +114,6 @@ gem 'omniauth-facebook'
 gem 'omniauth-twitter'
 gem 'omniauth-github'
 gem 'omniauth-oauth2', require: false
-# abandoned gem hard to tell what is going on, multiple PRs upstream being ignored:
-# https://twitter.com/samsaffron/status/412372111710109696
-# we use: gem 'omniauth-browserid', git: 'https://github.com/samsaffron/omniauth-browserid.git', branch: 'observer_api'
-gem 'omniauth-browserid-discourse', require: 'omniauth-browserid'
-gem 'omniauth-cas'
 gem 'oj'
 # while resolving https://groups.google.com/forum/#!topic/ruby-pg/5_ylGmog1S4
 gem 'pg', '0.15.1'
@@ -135,8 +129,7 @@ gem 'sidekiq-failures'
 gem 'sinatra', require: nil
 gem 'slim'  # required for sidekiq-web
 
-# URGENT fix needed see: https://github.com/cowboyd/therubyracer/pull/280
-gem 'therubyracer-discourse', require: 'v8'
+gem 'therubyracer'
 gem 'thin', require: false
 gem 'highline', require: false
 gem 'rack-protection' # security

@@ -44,6 +44,7 @@ class Category < ActiveRecord::Base
 
   has_one :category_search_data
   belongs_to :parent_category, class_name: 'Category'
+  has_many :subcategories, class_name: 'Category', foreign_key: 'parent_category_id'
 
   scope :latest, ->{ order('topic_count desc') }
 
@@ -339,8 +340,28 @@ SQL
     [read_restricted, mapped]
   end
 
+  def self.query_parent_category(parent_slug)
+    self.where(slug: parent_slug).pluck(:id).first ||
+    self.where(id: parent_slug.to_i).pluck(:id).first
+  end
+
+  def self.query_category(slug, parent_category_id)
+    self.where(slug: slug, parent_category_id: parent_category_id).includes(:featured_users).first ||
+    self.where(id: slug.to_i, parent_category_id: parent_category_id).includes(:featured_users).first
+  end
+
+  def has_children?
+    id && Category.where(parent_category_id: id).exists?
+  end
+
   def uncategorized?
     id == SiteSetting.uncategorized_category_id
+  end
+
+  def url
+    url = "/category"
+    url << "/#{parent_category.slug}" if parent_category_id
+    url << "/#{slug}"
   end
 end
 
@@ -362,7 +383,6 @@ end
 #  slug               :string(255)      not null
 #  description        :text
 #  text_color         :string(6)        default("FFFFFF"), not null
-#  hotness            :float            default(5.0), not null
 #  read_restricted    :boolean          default(FALSE), not null
 #  auto_close_hours   :float
 #  post_count         :integer          default(0), not null
@@ -370,6 +390,9 @@ end
 #  latest_topic_id    :integer
 #  position           :integer
 #  parent_category_id :integer
+#  posts_year         :integer
+#  posts_month        :integer
+#  posts_week         :integer
 #
 # Indexes
 #

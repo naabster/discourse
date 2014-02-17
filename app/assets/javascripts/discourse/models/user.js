@@ -178,7 +178,7 @@ Discourse.User = Discourse.Model.extend({
                                'digest_after_days',
                                'new_topic_duration_minutes',
                                'external_links_in_new_tab',
-                               'watch_new_topics',
+                               'mailing_list_mode',
                                'enable_quoting');
 
     _.each(['muted','watched','tracked'], function(s){
@@ -288,6 +288,11 @@ Discourse.User = Discourse.Model.extend({
         }));
       }
 
+      if (!Em.isEmpty(json.user.custom_groups)) {
+        json.user.custom_groups = json.user.custom_groups.map(function (g) {
+          return Discourse.Group.create(g);
+        });
+      }
       if (json.user.invited_by) {
         json.user.invited_by = Discourse.User.create(json.user.invited_by);
       }
@@ -370,7 +375,22 @@ Discourse.User = Discourse.Model.extend({
 
   updateWatchedCategories: function() {
     this.set("watchedCategories", Discourse.Category.findByIds(this.watched_category_ids));
-  }.observes("watched_category_ids")
+  }.observes("watched_category_ids"),
+
+  canDeleteAccount: function() {
+    return this.get('can_delete_account') && ((this.get('reply_count')||0) + (this.get('topic_count')||0)) <= 1;
+  }.property('can_delete_account', 'reply_count', 'topic_count'),
+
+  delete: function() {
+    if (this.get('can_delete_account')) {
+      return Discourse.ajax("/users/" + this.get('username'), {
+        type: 'DELETE',
+        data: {context: window.location.pathname}
+      });
+    } else {
+      return Ember.RSVP.reject(I18n.t('user.delete_yourself_not_allowed'));
+    }
+  }
 
 });
 
