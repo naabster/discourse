@@ -8,6 +8,7 @@ class UserSerializer < BasicUserSerializer
              :bio_cooked,
              :created_at,
              :website,
+             :profile_background,
              :can_edit,
              :can_edit_username,
              :can_edit_email,
@@ -47,6 +48,7 @@ class UserSerializer < BasicUserSerializer
   end
 
   private_attributes :email,
+                     :locale,
                      :email_digests,
                      :email_private_messages,
                      :email_direct,

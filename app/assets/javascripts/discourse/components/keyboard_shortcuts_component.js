@@ -59,11 +59,17 @@ Discourse.KeyboardShortcuts = Ember.Object.createWithMixins({
   },
 
   goToFirstPost: function() {
-    Discourse.__container__.lookup('controller:topic').send('jumpTop');
+    this._jumpTo('jumpTop');
   },
 
   goToLastPost: function() {
-    Discourse.__container__.lookup('controller:topic').send('jumpBottom');
+    this._jumpTo('jumpBottom');
+  },
+
+  _jumpTo: function(direction) {
+    if ($('#topic-title').length) {
+      Discourse.__container__.lookup('controller:topic').send(direction);
+    }
   },
 
   selectDown: function() {
@@ -127,7 +133,13 @@ Discourse.KeyboardShortcuts = Ember.Object.createWithMixins({
     if ($article.size() > 0) {
       $articles.removeClass('selected');
       $article.addClass('selected');
-      this._scrollList($article);
+
+      var rgx = new RegExp("post-cloak-(\\d+)").exec($article.parent()[0].id);
+      if (rgx === null || typeof rgx[1] === 'undefined') {
+          this._scrollList($article);
+      } else {
+          Discourse.TopicView.jumpToPost(rgx[1]);
+      }
     }
   },
 

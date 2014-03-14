@@ -16,24 +16,18 @@ module RailsMultisite
           handler = @@connection_handlers[spec]
           unless handler
             handler = ActiveRecord::ConnectionAdapters::ConnectionHandler.new
-            if rails4?
-              handler.establish_connection(ActiveRecord::Base, spec)
-            end
+            handler.establish_connection(ActiveRecord::Base, spec)
             @@connection_handlers[spec] = handler
           end
         else
           handler = @@default_connection_handler
-          if rails4? && !@@established_default
+          if !@@established_default
             handler.establish_connection(ActiveRecord::Base, spec)
             @@established_default = true
           end
         end
 
         ActiveRecord::Base.connection_handler = handler
-
-        unless rails4?
-          handler.establish_connection("ActiveRecord::Base", spec)
-        end
       end
     end
 
@@ -89,7 +83,6 @@ module RailsMultisite
       config[:host_names].nil? ? config[:host] : config[:host_names].first
     end
 
-
     def self.clear_settings!
       @@db_spec_cache = nil
       @@host_spec_cache = nil
@@ -97,7 +90,7 @@ module RailsMultisite
     end
 
     def self.load_settings!
-      spec_klass = rails4? ? ActiveRecord::ConnectionAdapters::ConnectionSpecification : ActiveRecord::Base::ConnectionSpecification
+      spec_klass = ActiveRecord::ConnectionAdapters::ConnectionSpecification
       configs = YAML::load(File.open(self.config_filename))
       configs.each do |k,v|
         raise ArgumentError.new("Please do not name any db default!") if k == "default"

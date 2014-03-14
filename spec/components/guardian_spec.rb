@@ -8,6 +8,7 @@ describe Guardian do
   let(:moderator) { build(:moderator) }
   let(:admin) { build(:admin) }
   let(:leader) { build(:user, trust_level: 3) }
+  let(:elder)  { build(:user, trust_level: 4) }
   let(:another_admin) { build(:admin) }
   let(:coding_horror) { build(:coding_horror) }
 
@@ -70,6 +71,11 @@ describe Guardian do
       it "returns false for a new user flagging something as off topic" do
         user.trust_level = TrustLevel.levels[:new]
         Guardian.new(user).post_can_act?(post, :off_topic).should be_false
+      end
+
+      it "returns false for a new user flagging with notify_user" do
+        user.trust_level = TrustLevel.levels[:new]
+        Guardian.new(user).post_can_act?(post, :notify_user).should be_false # because new users can't send private messages
       end
     end
   end
@@ -254,7 +260,6 @@ describe Guardian do
     end
 
     describe 'a Post' do
-
       let(:another_admin) { Fabricate(:admin) }
       it 'correctly handles post visibility' do
         post = Fabricate(:post)
@@ -274,8 +279,43 @@ describe Guardian do
         Guardian.new(user).can_see?(post).should be_false
         Guardian.new(admin).can_see?(post).should be_true
       end
+    end
 
+    describe 'a PostRevision' do
+      let(:post_revision) { Fabricate(:post_revision) }
 
+      context 'edit_history_visible_to_public is true' do
+        before { SiteSetting.stubs(:edit_history_visible_to_public).returns(true) }
+
+        it 'is false for nil' do
+          Guardian.new.can_see?(nil).should be_false
+        end
+
+        it 'is true if not logged in' do
+          Guardian.new.can_see?(post_revision).should == true
+        end
+
+        it 'is true when logged in' do
+          Guardian.new(Fabricate(:user)).can_see?(post_revision).should == true
+        end
+      end
+
+      context 'edit_history_visible_to_public is false' do
+        before { SiteSetting.stubs(:edit_history_visible_to_public).returns(false) }
+
+        it 'is true for staff' do
+          Guardian.new(Fabricate(:admin)).can_see?(post_revision).should == true
+          Guardian.new(Fabricate(:moderator)).can_see?(post_revision).should == true
+        end
+
+        it 'is true for trust level 4' do
+          Guardian.new(Fabricate(:elder)).can_see?(post_revision).should == true
+        end
+
+        it 'is false for trust level lower than 4' do
+          Guardian.new(Fabricate(:leader)).can_see?(post_revision).should == false
+        end
+      end
     end
   end
 
@@ -544,6 +584,10 @@ describe Guardian do
 
       it 'returns true as an admin' do
         Guardian.new(admin).can_edit?(post).should be_true
+      end
+
+      it 'returns true as a trust level 4 user' do
+        Guardian.new(elder).can_edit?(post).should be_true
       end
 
       context 'post is older than post_edit_time_limit' do
@@ -1149,19 +1193,26 @@ describe Guardian do
     end
 
     shared_examples "can_delete_user examples" do
-      let(:deletable_user) { Fabricate.build(:user, created_at: 5.minutes.ago) }
+      it "is true if user is not an admin and has never posted" do
+        Guardian.new(actor).can_delete_user?(Fabricate.build(:user, created_at: 100.days.ago)).should == true
+      end
 
-      it "is true if user is not an admin and is not too old" do
-        Guardian.new(actor).can_delete_user?(deletable_user).should == true
+      it "is true if user is not an admin and first post is not too old" do
+        user = Fabricate.build(:user, created_at: 100.days.ago)
+        user.stubs(:first_post).returns(Fabricate.build(:post, created_at: 9.days.ago))
+        SiteSetting.stubs(:delete_user_max_post_age).returns(10)
+        Guardian.new(actor).can_delete_user?(user).should == true
       end
 
       it "is false if user is an admin" do
         Guardian.new(actor).can_delete_user?(another_admin).should == false
       end
 
-      it "is false if user is too old" do
-        SiteSetting.stubs(:delete_user_max_age).returns(7)
-        Guardian.new(actor).can_delete_user?(Fabricate(:user, created_at: 8.days.ago)).should == false
+      it "is false if user's first post is too old" do
+        user = Fabricate.build(:user, created_at: 100.days.ago)
+        user.stubs(:first_post).returns(Fabricate.build(:post, created_at: 11.days.ago))
+        SiteSetting.stubs(:delete_user_max_post_age).returns(10)
+        Guardian.new(actor).can_delete_user?(user).should == false
       end
     end
 
@@ -1190,14 +1241,23 @@ describe Guardian do
     end
 
     shared_examples "can_delete_all_posts examples" do
-      it "is true if user is newer than delete_user_max_age days old" do
-        SiteSetting.expects(:delete_user_max_age).returns(10)
-        Guardian.new(actor).can_delete_all_posts?(Fabricate.build(:user, created_at: 9.days.ago)).should be_true
+      it "is true if user has no posts" do
+        SiteSetting.stubs(:delete_user_max_post_age).returns(10)
+        Guardian.new(actor).can_delete_all_posts?(Fabricate.build(:user, created_at: 100.days.ago)).should be_true
       end
 
-      it "is false if user is older than delete_user_max_age days old" do
-        SiteSetting.expects(:delete_user_max_age).returns(10)
-        Guardian.new(actor).can_delete_all_posts?(Fabricate.build(:user, created_at: 11.days.ago)).should be_false
+      it "is true if user's first post is newer than delete_user_max_post_age days old" do
+        user = Fabricate.build(:user, created_at: 100.days.ago)
+        user.stubs(:first_post).returns(Fabricate.build(:post, created_at: 9.days.ago))
+        SiteSetting.stubs(:delete_user_max_post_age).returns(10)
+        Guardian.new(actor).can_delete_all_posts?(user).should be_true
+      end
+
+      it "is false if user's first post is older than delete_user_max_post_age days old" do
+        user = Fabricate.build(:user, created_at: 100.days.ago)
+        user.stubs(:first_post).returns(Fabricate.build(:post, created_at: 11.days.ago))
+        SiteSetting.stubs(:delete_user_max_post_age).returns(10)
+        Guardian.new(actor).can_delete_all_posts?(user).should be_false
       end
 
       it "is false if user is an admin" do
@@ -1334,6 +1394,25 @@ describe Guardian do
         Guardian.new(user).can_edit_username?(user).should be_false
       end
     end
+
+    context 'when SSO username override is active' do
+      before do
+        SiteSetting.stubs(:enable_sso).returns(true)
+        SiteSetting.stubs(:sso_overrides_username).returns(true)
+      end
+
+      it "is false for admins" do
+        Guardian.new(admin).can_edit_username?(admin).should be_false
+      end
+
+      it "is false for moderators" do
+        Guardian.new(moderator).can_edit_username?(moderator).should be_false
+      end
+
+      it "is false for users" do
+        Guardian.new(user).can_edit_username?(user).should be_false
+      end
+    end
   end
 
   describe "can_edit_email?" do
@@ -1388,7 +1467,25 @@ describe Guardian do
         Guardian.new(moderator).can_edit_email?(user).should be_true
       end
     end
-  end
 
+    context 'when SSO email override is active' do
+      before do
+        SiteSetting.stubs(:enable_sso).returns(true)
+        SiteSetting.stubs(:sso_overrides_email).returns(true)
+      end
+
+      it "is false for admins" do
+        Guardian.new(admin).can_edit_email?(admin).should be_false
+      end
+
+      it "is false for moderators" do
+        Guardian.new(moderator).can_edit_email?(moderator).should be_false
+      end
+
+      it "is false for users" do
+        Guardian.new(user).can_edit_email?(user).should be_false
+      end
+    end
+  end
 end
 

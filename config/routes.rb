@@ -7,14 +7,14 @@ require_dependency "homepage_constraint"
 # This used to be User#username_format, but that causes a preload of the User object
 # and makes Guard not work properly.
 USERNAME_ROUTE_FORMAT = /[A-Za-z0-9\_]+/ unless defined? USERNAME_ROUTE_FORMAT
-BACKUP_ROUTE_FORMAT = /\d{4}(-\d{2}){2}-\d{6}\.tar\.gz/i unless defined? BACKUP_ROUTE_FORMAT
+BACKUP_ROUTE_FORMAT = /[a-zA-Z0-9\-_]*\d{4}(-\d{2}){2}-\d{6}\.tar\.gz/i unless defined? BACKUP_ROUTE_FORMAT
 
 Discourse::Application.routes.draw do
 
   match "/404", to: "exceptions#not_found", via: [:get, :post]
 
   mount Sidekiq::Web => "/sidekiq", constraints: AdminConstraint.new
-  
+
   get "site" => "site#index"
 
   resources :forums
@@ -121,6 +121,8 @@ Discourse::Application.routes.draw do
         get "cancel" => "backups#cancel"
         get "rollback" => "backups#rollback"
         put "readonly" => "backups#readonly"
+        get "upload" => "backups#check_chunk"
+        post "upload" => "backups#upload_chunk"
       end
     end
 
@@ -138,6 +140,8 @@ Discourse::Application.routes.draw do
     end
   end
 
+  get "session/sso" => "session#sso"
+  get "session/sso_login" => "session#sso_login"
   get "session/current" => "session#current"
   get "session/csrf" => "session#csrf"
   get "composer-messages" => "composer_messages#index"
@@ -155,6 +159,7 @@ Discourse::Application.routes.draw do
   get "faq" => "static#show", id: "faq"
   get "tos" => "static#show", id: "tos"
   get "privacy" => "static#show", id: "privacy"
+  get "signup" => "list#latest"
 
   get "users/search/users" => "users#search_users"
   get "users/password-reset/:token" => "users#password_reset"
@@ -176,7 +181,9 @@ Discourse::Application.routes.draw do
   put "users/:username/preferences/username" => "users#username", constraints: {username: USERNAME_ROUTE_FORMAT}
   get "users/:username/avatar(/:size)" => "users#avatar", constraints: {username: USERNAME_ROUTE_FORMAT} # LEGACY ROUTE
   post "users/:username/preferences/avatar" => "users#upload_avatar", constraints: {username: USERNAME_ROUTE_FORMAT}
+  post "users/:username/preferences/user_image" => "users#upload_user_image", constraints: {username: USERNAME_ROUTE_FORMAT}
   put "users/:username/preferences/avatar/toggle" => "users#toggle_avatar", constraints: {username: USERNAME_ROUTE_FORMAT}
+  put "users/:username/preferences/profile_background/clear" => "users#clear_profile_background", constraints: {username: USERNAME_ROUTE_FORMAT}
   get "users/:username/invited" => "users#invited", constraints: {username: USERNAME_ROUTE_FORMAT}
   post "users/:username/send_activation_email" => "users#send_activation_email", constraints: {username: USERNAME_ROUTE_FORMAT}
   get "users/:username/activity" => "users#show", constraints: {username: USERNAME_ROUTE_FORMAT}
@@ -192,7 +199,7 @@ Discourse::Application.routes.draw do
   resources :groups do
     get 'members'
     get 'posts'
-    get 'posts_count'
+    get 'counts'
   end
 
   resources :posts do
@@ -276,6 +283,7 @@ Discourse::Application.routes.draw do
   put "t/:id" => "topics#update"
   delete "t/:id" => "topics#destroy"
   put "topics/bulk"
+  put "topics/reset-new" => 'topics#reset_new'
   post "topics/timings"
   get "topics/similar_to"
   get "topics/created-by/:username" => "list#topics_by", as: "topics_by", constraints: {username: USERNAME_ROUTE_FORMAT}

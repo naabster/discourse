@@ -2,6 +2,9 @@
 # This file contains content for the client portion of Discourse, sent out
 # to the Javascript app.
 #
+# To work with us on translations, see:
+# https://www.transifex.com/projects/p/discourse-pt-br/
+#
 # To validate this YAML file after you change it, please paste it into
 # http://yamllint.com/
 
@@ -244,6 +247,11 @@ zh_CN:
       tracked_categories_instructions: "你将自动跟踪所有新的和已有的主题，并会显示新的和未读帖子的数量。"
       muted_categories: "免打扰"
       muted_categories_instructions: "你不会收到任何通知，也不会显示未读数量。"
+
+      unread_message_count:
+        one: "消息（1）"
+        other: "消息（{{count}}）"
+        zero: "消息"
 
       messages:
         all: "所有"
@@ -602,6 +610,17 @@ zh_CN:
         unstar: '将此主题从你的收藏列表中移除'
 
     topics:
+      bulk:
+        reset_read: "设为未读"
+        dismiss_read: "设为已读"
+        toggle: "切换批量选择"
+        actions: "批量操作"
+        change_category: "更改目录"
+        close_topics: "选择话题"
+        notification_level: "更改提示等级"
+        selected:
+          one: "你选择了<b>一</b>个帖子。"
+          other: "你选择了<b>{{count}}</b>个帖子。"
       none:
         starred: "你尚未收藏任何主题。要收藏一个主题，点击标题旁的星星图标。"
         unread: "你没有未阅主题。"
@@ -852,7 +871,10 @@ zh_CN:
         image_upload_not_allowed_for_new_user: "抱歉，新注册用户无法上传图片。"
         attachment_upload_not_allowed_for_new_user: "抱歉，新注册用户无法上传附件。"
 
-      abandon: "你确定要丢弃你的帖子吗？"
+      abandon:
+        confirm: "你确定要丢弃你的帖子吗？"
+        no_value: "否"
+        yes_value: "是"
 
       archetypes:
         save: '保存选项'
@@ -980,7 +1002,7 @@ zh_CN:
           previous: "前一次修改"
           next: "下一次修改"
           last: "上一次修改"
-          comparing_previous_to_current_out_of_total: "<strong>#{{previous}}</strong> vs. <strong>#{{current}}</strong> / {{total}}"
+          comparing_previous_to_current_out_of_total: "<strong>{{previous}}</strong> vs <strong>{{current}}</strong> / {{total}}"
         displays:
           inline:
             title: "在生成的结果中显示增加和删除的内容"

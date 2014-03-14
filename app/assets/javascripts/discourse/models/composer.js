@@ -425,7 +425,8 @@ Discourse.Composer = Discourse.Model.extend({
     this.set('composeState', CLOSED);
 
     return Ember.Deferred.promise(function(promise) {
-      post.save(function() {
+      post.save(function(result) {
+        post.updateFromPost(result);
         composer.clearState();
       }, function(error) {
         var response = $.parseJSON(error.responseText);
@@ -523,10 +524,16 @@ Discourse.Composer = Discourse.Model.extend({
           postStream.undoPost(createdPost);
         }
         composer.set('composeState', OPEN);
+
         // TODO extract error handling code
         var parsedError;
         try {
-          parsedError = $.parseJSON(error.responseText).errors[0];
+          var parsedJSON = $.parseJSON(error.responseText);
+          if (parsedJSON.errors) {
+            parsedError = parsedJSON.errors[0];
+          } else if (parsedJSON.failed) {
+            parsedError = parsedJSON.message;
+          }
         }
         catch(ex) {
           parsedError = "Unknown error saving post, try again. Error: " + error.status + " " + error.statusText;

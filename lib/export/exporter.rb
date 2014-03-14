@@ -38,6 +38,10 @@ module Export
 
       create_archive
 
+      after_create_hook
+
+      remove_old
+
       notify_user
     rescue SystemExit
       log "Backup process was cancelled!"
@@ -71,7 +75,7 @@ module Export
       @dump_filename = File.join(@tmp_directory, BackupRestore::DUMP_FILE)
       @meta_filename = File.join(@tmp_directory, BackupRestore::METADATA_FILE)
       @archive_directory = File.join(Rails.root, "public", "backups", @current_db)
-      @archive_basename = File.join(@archive_directory, @timestamp)
+      @archive_basename = File.join(@archive_directory, "#{SiteSetting.title.parameterize}-#{@timestamp}")
     end
 
     def listen_for_shutdown_signal
@@ -122,9 +126,6 @@ module Export
     def dump_public_schema
       log "Dumping the public schema of the database..."
 
-      pg_dump_command = build_pg_dump_command
-      log "Running: #{pg_dump_command}"
-
       logs = Queue.new
       pg_dump_running = true
 
@@ -151,41 +152,33 @@ module Export
       raise "pg_dump failed" unless $?.success?
     end
 
-    def build_pg_dump_command
-      db_conf = Rails.configuration.database_configuration[Rails.env]
-      host = db_conf["host"]
-      password = db_conf["password"]
-      username = db_conf["username"] || ENV["USER"] || "postgres"
-      database = db_conf["database"]
+    def pg_dump_command
+      db_conf = BackupRestore.database_configuration
 
-      password_argument = "PGPASSWORD=#{password}" if password.present?
-      host_argument     = "--host=#{host}"         if host.present?
+      password_argument = "PGPASSWORD=#{db_conf.password}" if db_conf.password.present?
+      host_argument     = "--host=#{db_conf.host}"         if db_conf.host.present?
+      username_argument = "--username=#{db_conf.username}" if db_conf.username.present?
 
-      [ password_argument,                  # pass the password to pg_dump
-        "pg_dump",                          # the pg_dump command
-        "--exclude-schema=backup",          # exclude backup schema
-        "--exclude-schema=restore",         # exclude restore schema
-        "--file='#{@dump_filename}'",       # output to the dump.sql file
-        "--no-owner",                       # do not output commands to set ownership of objects
-        "--no-privileges",                  # prevent dumping of access privileges
-        "--verbose",                        # specifies verbose mode
-        host_argument,                      # the hostname to connect to
-        "--username=#{username}",           # the username to connect as
-        database                            # the name of the database to dump
+      [ password_argument,            # pass the password to pg_dump (if any)
+        "pg_dump",                    # the pg_dump command
+        "--schema=public",            # only public schema
+        "--file='#{@dump_filename}'", # output to the dump.sql file
+        "--no-owner",                 # do not output commands to set ownership of objects
+        "--no-privileges",            # prevent dumping of access privileges
+        "--verbose",                  # specifies verbose mode
+        host_argument,                # the hostname to connect to (if any)
+        username_argument,            # the username to connect as (if any)
+        db_conf.database              # the name of the database to dump
       ].join(" ")
     end
 
     def update_dump
       log "Updating dump for more awesomeness..."
 
-      sed_command = build_sed_command
-
-      log "Running: #{sed_command}"
-
       `#{sed_command}`
     end
 
-    def build_sed_command
+    def sed_command
       # in order to limit the downtime when restoring as much as possible
       # we force the restoration to happen in the "restore" schema
 
@@ -226,33 +219,40 @@ module Export
 
       log "Archiving metadata..."
       FileUtils.cd(File.dirname(@meta_filename)) do
-        `tar --append --file #{tar_filename} #{File.basename(@meta_filename)}`
+        `tar --append --dereference --file #{tar_filename} #{File.basename(@meta_filename)}`
       end
 
       log "Archiving data dump..."
       FileUtils.cd(File.dirname(@dump_filename)) do
-        `tar --append --file #{tar_filename} #{File.basename(@dump_filename)}`
+        `tar --append --dereference --file #{tar_filename} #{File.basename(@dump_filename)}`
       end
 
       upload_directory = "uploads/" + @current_db
 
-      if Dir[upload_directory].present?
-
-        log "Archiving uploads..."
-        FileUtils.cd(File.join(Rails.root, "public")) do
-          `tar --append --file #{tar_filename} #{upload_directory}`
-        end
-
+      log "Archiving uploads..."
+      FileUtils.cd(File.join(Rails.root, "public")) do
+        `tar --append --dereference --file #{tar_filename} #{upload_directory}`
       end
 
       log "Gzipping archive..."
-      `gzip #{tar_filename}`
+      `gzip --best #{tar_filename}`
+    end
+
+    def after_create_hook
+      log "Executing the after_create_hook for the backup"
+      backup = Backup.create_from_filename("#{File.basename(@archive_basename)}.tar.gz")
+      backup.after_create_hook
     end
 
     def notify_user
       log "Notifying '#{@user.username}' of the success of the backup..."
       # NOTE: will only notify if @user != Discourse.site_contact_user
       SystemMessage.create(@user, :export_succeeded)
+    end
+
+    def remove_old
+      log "Removing old backups..."
+      Backup.remove_old
     end
 
     def clean_up
