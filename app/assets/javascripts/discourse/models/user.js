@@ -123,6 +123,9 @@ Discourse.User = Discourse.Model.extend({
     return Discourse.Site.currentProp('trustLevels').findProperty('id', parseInt(this.get('trust_level'), 10));
   }.property('trust_level'),
 
+  isElder: Em.computed.equal('trust_level', 4),
+  canManageTopic: Em.computed.or('staff', 'isElder'),
+
   isSuspended: Em.computed.equal('suspended', true),
 
   suspended: function() {
@@ -458,6 +461,7 @@ Discourse.User.reopenClass(Discourse.Singleton, {
     @method checkUsername
     @param {String} username A username to check
     @param {String} email An email address to check
+    @param {Number} forUserId user id - provide when changing username
   **/
   checkUsername: function(username, email, forUserId) {
     return Discourse.ajax('/users/check_username', {
@@ -469,7 +473,7 @@ Discourse.User.reopenClass(Discourse.Singleton, {
     Groups the user's statistics
 
     @method groupStats
-    @param {Array} Given stats
+    @param {Array} stats Given stats
     @returns {Object}
   **/
   groupStats: function(stats) {
@@ -504,6 +508,7 @@ Discourse.User.reopenClass(Discourse.Singleton, {
     @param {String} name This user's name
     @param {String} email This user's email
     @param {String} password This user's password
+    @param {String} username This user's username
     @param {String} passwordConfirm This user's confirmed password
     @param {String} challenge
     @returns Result of ajax call

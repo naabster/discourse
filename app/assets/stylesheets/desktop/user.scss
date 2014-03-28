@@ -41,6 +41,10 @@
     }
   }
 
+  .bio-composer #wmd-quote-post {
+    display: none;
+  }
+
   #profile-background-preview {
     height: 270px;
 
@@ -61,10 +65,12 @@
     display: inline-block;
   }
   .instructions {
-    color: $primary_text_color;
+    color: $secondary_text_color;
     margin-left: 160px;
     margin-top: 5px;
     margin-bottom: 10px;
+    font-size: 80%;
+    line-height: 1.4em;
   }
   .avatar {
     margin-left: 3px;

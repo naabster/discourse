@@ -200,7 +200,7 @@ class Topic < ActiveRecord::Base
         modifications: changes.extract!(:category_id, :title)
       )
 
-      Post.update_all({version: number}, id: first_post_id)
+      Post.where(id: first_post_id).update_all(version: number)
     end
   end
 
@@ -701,6 +701,12 @@ class Topic < ActiveRecord::Base
     @acting_user = u
   end
 
+  def secure_group_ids
+    @secure_group_ids ||= if self.category && self.category.read_restricted?
+      self.category.secure_group_ids
+    end
+  end
+
   private
 
   def update_category_topic_count_by(num)
@@ -772,11 +778,12 @@ end
 #  deleted_by_id           :integer
 #  participant_count       :integer          default(1)
 #  word_count              :integer
+#  excerpt                 :string(1000)
 #
 # Indexes
 #
-#  idx_topics_user_id_deleted_at                                (user_id)
-#  index_forum_threads_on_bumped_at                             (bumped_at)
-#  index_topics_on_deleted_at_and_visible_and_archetype_and_id  (deleted_at,visible,archetype,id)
-#  index_topics_on_id_and_deleted_at                            (id,deleted_at)
+#  idx_topics_front_page              (deleted_at,visible,archetype,category_id,id)
+#  idx_topics_user_id_deleted_at      (user_id)
+#  index_forum_threads_on_bumped_at   (bumped_at)
+#  index_topics_on_id_and_deleted_at  (id,deleted_at)
 #

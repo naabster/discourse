@@ -10,6 +10,7 @@
 Discourse.HistoryController = Discourse.ObjectController.extend(Discourse.ModalFunctionality, {
   loading: false,
   viewMode: "side_by_side",
+  revisionsTextKey: "post.revisions.controls.comparing_previous_to_current_out_of_total",
 
   refresh: function(postId, postVersion) {
     this.set("loading", true);
@@ -38,13 +39,15 @@ Discourse.HistoryController = Discourse.ObjectController.extend(Discourse.ModalF
     var viewMode = this.get("viewMode");
     var changes = this.get("category_changes");
 
+    if (changes === null) { return; }
+
     var prevCategory = Discourse.Category.findById(changes.previous_category_id);
     var curCategory = Discourse.Category.findById(changes.current_category_id);
 
     var raw = "";
     var opts = { allowUncategorized: true };
-    prevCategory = Discourse.HTML.categoryLink(prevCategory, opts);
-    curCategory = Discourse.HTML.categoryLink(curCategory, opts);
+    prevCategory = Discourse.HTML.categoryBadge(prevCategory, opts);
+    curCategory = Discourse.HTML.categoryBadge(curCategory, opts);
 
     if(viewMode === "side_by_side_markdown" || viewMode === "side_by_side") {
       raw = "<div class='span8'>" + prevCategory +  "</div> <div class='span8 offset1'>" + curCategory +  "</div>";

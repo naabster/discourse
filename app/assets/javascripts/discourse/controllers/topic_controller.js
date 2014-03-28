@@ -360,8 +360,16 @@ Discourse.TopicController = Discourse.ObjectController.extend(Discourse.Selected
         return;
       }
 
+      var postStream = topicController.get('postStream');
+      if (data.type === "revised" || data.type === "acted"){
+        // TODO we could update less data for "acted"
+        // (only post actions)
+        postStream.triggerChangedPost(data.id, data.updated_at);
+        return;
+      }
+
       // Add the new post into the stream
-      topicController.get('postStream').triggerNewPostInStream(data.id);
+      postStream.triggerNewPostInStream(data.id);
     });
   },
 

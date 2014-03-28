@@ -16,9 +16,6 @@ display: none;
 display: none;
 }
 
-
-
-
 .autocomplete {
   z-index: 999999;
   position: absolute;
@@ -53,12 +50,12 @@ display: none;
 }
 
 #reply-control {
-  .toggle-preview, #draft-status, #file-uploading {
+  .toggle-preview, #draft-status, #file-uploading, .mobile-file-upload {
     position: absolute;
     bottom: -31px;
     margin-top: 0;
   }
-  .toggle-preview {
+  .toggle-preview, .mobile-file-upload {
     right: 5px;
     text-decoration: underline;
   }
@@ -68,7 +65,7 @@ display: none;
     color: darken($tertiary_text_color, 40%);
   }
   #draft-status {
-    right: 0;
+    right: 70px;
     color: lighten($primary_text_color, 60%);
     &.flash {
       color: $warning_text_color;
@@ -78,7 +75,7 @@ display: none;
   width: 100%;
   z-index: 1039;
   height: 0;
-  background-color: $composer_background;
+  background-color: $composer_background_color;
   bottom: 0;
   font-size: 14px;
   position: fixed;
@@ -117,9 +114,6 @@ display: none;
   // The various states
   &.open {
     height: 300px;
-    .grippie {
-      display: block;
-    }
   }
   &.closed {
     height: 0 !important;
@@ -184,24 +178,25 @@ display: none;
     float: none;
   }
 
-  // When the post is new (new topic) the sizings are different
+  // if this is a new topic, make room for the category field in the editor on
+  // a small screen mobile device
   &.edit-title {
     &.open {
-      height: 400px;
+      height: 280px;
     }
     .contents {
       input#reply-title {
         padding: 7px 10px;
-        margin: 6px 10px 3px 0;
+        margin: 6px 10px 0 0;
       }
       .wmd-controls {
         @include transition(top 0.3s ease);
-        top: 135px;
+        top: 120px;
       }
     }
   }
   .contents {
-    padding: 10px;
+    padding: 10px 10px 0 10px;
     min-width: 1280px;
     .form-element {
       .chzn-container {
@@ -354,8 +349,12 @@ div.ac-wrap {
 #reply-control.edit-title.private-message {
   .wmd-controls {
     @include transition(top 0.3s ease);
-    top: 140px;
+    top: 120px;
   }
+}
+
+#reply-control.topic #wmd-quote-post {
+  display: none;
 }
 
 #reply-control {
@@ -454,11 +453,6 @@ div.ac-wrap {
       right: auto;
     }
   }
-}
-
-.admin-options-form {
-  margin-top: 8px;
-  display: none;
 }
 
 .auto-close-fields {
