@@ -49,7 +49,7 @@ Discourse.TopicView = Discourse.View.extend(Discourse.Scrolling, {
 
   _updateTitle: function() {
     var title = this.get('topic.title');
-    if (title) return Discourse.set('title', title);
+    if (title) return Discourse.set('title', _.unescape(title));
   }.observes('topic.loaded', 'topic.title'),
 
   _composeChanged: function() {
@@ -85,7 +85,8 @@ Discourse.TopicView = Discourse.View.extend(Discourse.Scrolling, {
     this.get('controller.streamPercentage');
 
     this.$().on('mouseup.discourse-redirect', '.cooked a, a.track-link', function(e) {
-      if ($(e.target).hasClass('mention')) { return false; }
+      var $target = $(e.target);
+      if ($target.hasClass('mention') || $target.parents('.expanded-embed').length) { return false; }
       return Discourse.ClickTrack.trackClick(e);
     });
   }.on('didInsertElement'),

@@ -109,6 +109,10 @@ class Guardian
   alias :can_send_activation_email? :can_moderate?
   alias :can_grant_badges? :can_moderate?
 
+  def can_see_group?(group)
+    group.present? && (is_admin? || group.visible?)
+  end
+
 
 
   # Can we impersonate this user?
@@ -182,6 +186,7 @@ class Guardian
 
   def can_invite_to_forum?
     authenticated? &&
+    !SiteSetting.enable_sso &&
     (
       (!SiteSetting.must_approve_users? && @user.has_trust_level?(:regular)) ||
       is_staff?
@@ -197,7 +202,7 @@ class Guardian
   end
 
   def can_send_private_message?(target)
-    (User === target || Group === target) &&
+    (target.is_a?(Group) || target.is_a?(User)) &&
     # User is authenticated
     authenticated? &&
     # Can't send message to yourself
@@ -205,7 +210,9 @@ class Guardian
     # Have to be a basic level at least
     @user.has_trust_level?(:basic) &&
     # PMs are enabled
-    SiteSetting.enable_private_messages
+    (SiteSetting.enable_private_messages ||
+      @user.username == SiteSetting.site_contact_username ||
+      @user == Discourse.system_user)
   end
 
   private
@@ -221,7 +228,7 @@ class Guardian
   end
 
   def is_me?(other)
-    other && authenticated? && User === other && @user == other
+    other && authenticated? && other.is_a?(User) && @user == other
   end
 
   def is_not_me?(other)

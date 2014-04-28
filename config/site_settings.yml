@@ -53,15 +53,19 @@ basic:
   top_menu:
     client: true
     refresh: true
+    list: true
     default: 'latest|new|unread|starred|top|categories'
   post_menu:
     client: true
+    list: true
     default: 'like|edit|flag|delete|share|bookmark|reply'
   share_links:
     client: true
+    list: true
     default: 'twitter|facebook|google+|email'
   category_colors:
     client: true
+    list: true
     default: 'BF1E2E|F1592A|F7941D|9EB83B|3AB54A|12A89D|25AAE2|0E76BD|652D90|92278F|ED207B|8C6238|231F20|808281|B3B5B4|283890'
   enable_mobile_theme:
     client: true
@@ -99,6 +103,10 @@ users:
   min_username_length:
     client: true
     default: 3
+  max_username_length:
+    client: true
+    default: 15
+    hidden: true
   min_password_length:
     client: true
     default: 8
@@ -147,7 +155,10 @@ users:
   delete_user_max_post_age:
     client: true
     default: 60
-  delete_all_posts_max: 15
+  delete_all_posts_max:
+    client: true
+    default: 15
+  redirect_users_to_top_page: true
 
 posting:
   min_post_length:
@@ -174,6 +185,7 @@ posting:
     default: 255
   title_min_entropy: 10
   title_prettify: true
+  title_sanitize: false
   title_fancy_entities: true
   min_private_message_title_length:
     client: true
@@ -211,7 +223,6 @@ posting:
   max_mentions_per_post: 10
   newuser_max_replies_per_topic: 3
   newuser_max_mentions_per_post: 2
-  onebox_max_chars: 5000
   max_word_length: 30
   newuser_max_links: 2
   newuser_max_images:
@@ -224,7 +235,6 @@ posting:
     default: -1
     hidden: true
   post_excerpt_maxlength: 300
-  post_onebox_maxlength: 500
   display_name_on_posts:
     client: true
     default: false
@@ -235,11 +245,15 @@ posting:
     client: true
     default: "lang-auto"
   warn_reviving_old_topic_age: 180
+  autohighlight_all_code:
+    client: true
+    default: false
 
 email:
   email_time_window_mins: 10
   email_posts_context: 5
   digest_min_excerpt_length: 100
+  digest_topics: 20
   default_digest_email_frequency:
     default: 7
     enum: 'DigestEmailSiteSetting'
@@ -272,6 +286,7 @@ files:
     client: true
     default: '.jpg|.jpeg|.png|.gif'
     refresh: true
+    list: true
   crawl_images:
     default:
       test: false
@@ -287,6 +302,9 @@ files:
       test: false
       default: true
   download_remote_images_threshold: 20
+  disabled_image_download_domains:
+    list: true
+    default: ''
   create_thumbnails: true
   clean_up_uploads: false
   clean_orphan_uploads_grace_period_hours: 1
@@ -328,17 +346,30 @@ trust:
   regular_requires_topic_reply_count: 3
 
 security:
-  enable_flash_video_onebox: false
   use_https: false
   enable_escaped_fragments: true
   allow_index_in_robots_txt: true
   enable_noscript_support: true
+  allow_moderators_to_create_categories: false
+
+onebox:
+  enable_flash_video_onebox: false
+  post_onebox_maxlength: 500
+  onebox_domains_whitelist:
+    default: ''
+    list: true
 
 spam:
   add_rel_nofollow_to_user_content: true
-  exclude_rel_nofollow_domains: ''
-  email_domains_blacklist: 'mailinator.com'
-  email_domains_whitelist: ''
+  exclude_rel_nofollow_domains:
+    default: ''
+    list: true
+  email_domains_blacklist:
+    default: 'mailinator.com'
+    list: true
+  email_domains_whitelist:
+    default: ''
+    list: true
   flags_required_to_hide_post: 3
   cooldown_minutes_after_hiding_posts: 10
   num_flags_to_block_new_user: 3
@@ -346,7 +377,9 @@ spam:
   notify_mods_when_user_blocked: false
   flag_sockpuppets: true
   newuser_spam_host_threshold: 3
-  white_listed_spam_host_domains: ""
+  white_listed_spam_host_domains:
+    default: ''
+    list: true
 
 rate_limits:
   unique_posts_mins:
@@ -398,6 +431,8 @@ embedding:
   embed_category: ''
   embed_post_limit: 100
   embed_truncate: false
+  embed_whitelist_selector: ''
+  embed_blacklist_selector: ''
 
 legal:
   tos_url:
@@ -492,3 +527,4 @@ uncategorized:
     default: -1
     hidden: true
 
+  notify_about_flags_after: 48

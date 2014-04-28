@@ -16,13 +16,13 @@ class TopicQuery
                      topic_ids
                      visible
                      category
-                     sort_order
+                     order
+                     ascending
                      no_subcategories
-                     sort_descending
                      no_definitions
                      status).map(&:to_sym)
 
-  # Maps `sort_order` to a columns in `topics`
+  # Maps `order` to a columns in `topics`
   SORTABLE_MAPPING = {
     'likes' => 'like_count',
     'views' => 'views',
@@ -81,7 +81,7 @@ class TopicQuery
   end
 
   def list_posted
-    create_list(:posted) {|l| l.where('tu.user_id IS NOT NULL') }
+    create_list(:posted) {|l| l.where('tu.posted') }
   end
 
   def list_top_for(period)
@@ -189,8 +189,8 @@ class TopicQuery
     end
 
     def apply_ordering(result, options)
-      sort_column = SORTABLE_MAPPING[options[:sort_order]] || 'default'
-      sort_dir = (options[:sort_descending] == "false") ? "ASC" : "DESC"
+      sort_column = SORTABLE_MAPPING[options[:order]] || 'default'
+      sort_dir = (options[:ascending] == "true") ? "ASC" : "DESC"
 
       # If we are sorting in the default order desc, we should consider including pinned
       # topics. Otherwise, just use bumped_at.

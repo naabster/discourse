@@ -75,13 +75,15 @@ Discourse.User = Discourse.Model.extend({
   }.property('profile_background'),
 
   statusIcon: function() {
-    var desc;
+    var name = Handlebars.Utils.escapeExpression(this.get('name')),
+        desc;
+
     if(this.get('admin')) {
-      desc = I18n.t('user.admin', {user: this.get("name")});
+      desc = I18n.t('user.admin', {user: name});
       return '<i class="fa fa-trophy" title="' + desc +  '" alt="' + desc + '"></i>';
     }
     if(this.get('moderator')){
-      desc = I18n.t('user.moderator', {user: this.get("name")});
+      desc = I18n.t('user.moderator', {user: name});
       return '<i class="fa fa-magic" title="' + desc +  '" alt="' + desc + '"></i>';
     }
     return null;
@@ -310,8 +312,19 @@ Discourse.User = Discourse.Model.extend({
           return Discourse.Group.create(g);
         });
       }
+
       if (json.user.invited_by) {
         json.user.invited_by = Discourse.User.create(json.user.invited_by);
+      }
+
+      if (!Em.isEmpty(json.user.featured_user_badge_ids)) {
+        var userBadgesMap = {};
+        Discourse.UserBadge.createFromJson(json).forEach(function(userBadge) {
+          userBadgesMap[ userBadge.get('id') ] = userBadge;
+        });
+        json.user.featured_user_badges = json.user.featured_user_badge_ids.map(function(id) {
+          return userBadgesMap[id];
+        });
       }
 
       user.setProperties(json.user);
@@ -375,16 +388,6 @@ Discourse.User = Discourse.Model.extend({
       data: {email: email}
     });
   },
-
-  /**
-    Homepage of the user
-
-    @property homepage
-    @type {String}
-  **/
-  homepage: function() {
-    return this.get("should_be_redirected_to_top") ? "top" : Discourse.Utilities.defaultHomepage();
-  }.property("should_be_redirected_to_top"),
 
   updateMutedCategories: function() {
     this.set("mutedCategories", Discourse.Category.findByIds(this.muted_category_ids));

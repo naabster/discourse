@@ -4,7 +4,6 @@ require_dependency 'topic_view'
 require_dependency 'rate_limiter'
 require_dependency 'text_sentinel'
 require_dependency 'text_cleaner'
-require_dependency 'trashable'
 require_dependency 'archetype'
 
 class Topic < ActiveRecord::Base
@@ -55,17 +54,23 @@ class Topic < ActiveRecord::Base
                                         :case_sensitive => false,
                                         :collection => Proc.new{ Topic.listable_topics } }
 
-  validates :category_id, :presence => true ,:exclusion => {:in => [SiteSetting.uncategorized_category_id]},
-                                     :if => Proc.new { |t|
-                                           (t.new_record? || t.category_id_changed?) &&
-                                           !SiteSetting.allow_uncategorized_topics &&
-                                           (t.archetype.nil? || t.archetype == Archetype.default) &&
-                                           (!t.user_id || !t.user.staff?)
-                                       }
+  validates :category_id,
+            :presence => true,
+            :exclusion => {
+              :in => Proc.new{[SiteSetting.uncategorized_category_id]}
+            },
+            :if => Proc.new { |t|
+                   (t.new_record? || t.category_id_changed?) &&
+                   !SiteSetting.allow_uncategorized_topics &&
+                   (t.archetype.nil? || t.archetype == Archetype.default) &&
+                   (!t.user_id || !t.user.staff?)
+            }
 
 
   before_validation do
-    self.sanitize_title
+    if SiteSetting.title_sanitize
+      self.title = sanitize(title.to_s, tags: [], attributes: []).strip.presence
+    end
     self.title = TextCleaner.clean_title(TextSentinel.title_sentinel(title).text) if errors[:title].empty?
   end
 
@@ -242,17 +247,26 @@ class Topic < ActiveRecord::Base
   end
 
   def fancy_title
-    return title unless SiteSetting.title_fancy_entities?
+    sanitized_title = if SiteSetting.title_sanitize
+      sanitize(title.to_s, tags: [], attributes: []).strip.presence
+    else
+      title.gsub(/['&\"<>]/, {
+        "'" => '&#39;',
+        '&' => '&amp;',
+        '"' => '&quot;',
+        '<' => '&lt;',
+        '>' => '&gt;',
+      })
+    end
+
+    return unless sanitized_title
+    return sanitized_title unless SiteSetting.title_fancy_entities?
 
     # We don't always have to require this, if fancy is disabled
     # see: http://meta.discourse.org/t/pattern-for-defer-loading-gems-and-profiling-with-perftools-rb/4629
     require 'redcarpet' unless defined? Redcarpet
 
-    Redcarpet::Render::SmartyPants.render(title)
-  end
-
-  def sanitize_title
-    self.title = sanitize(title.to_s, tags: [], attributes: []).strip.presence
+    Redcarpet::Render::SmartyPants.render(sanitized_title)
   end
 
   def new_version_required?
@@ -260,22 +274,48 @@ class Topic < ActiveRecord::Base
   end
 
   # Returns hot topics since a date for display in email digest.
-  def self.for_digest(user, since)
+  def self.for_digest(user, since, opts=nil)
+    opts = opts || {}
+    score = "#{ListController.best_period_for(since)}_score"
+
     topics = Topic
               .visible
               .secured(Guardian.new(user))
+              .joins("LEFT OUTER JOIN topic_users ON topic_users.topic_id = topics.id AND topic_users.user_id = #{user.id.to_i}")
               .where(closed: false, archived: false)
+              .where("COALESCE(topic_users.notification_level, 1) <> ?", TopicUser.notification_levels[:muted])
               .created_since(since)
               .listable_topics
-              .order(:percent_rank)
-              .limit(100)
+              .includes(:category)
 
+    if !!opts[:top_order]
+      topics = topics.joins("LEFT OUTER JOIN top_topics ON top_topics.topic_id = topics.id")
+                     .order(TopicQuerySQL.order_top_for(score))
+    end
+
+    if opts[:limit]
+      topics = topics.limit(opts[:limit])
+    end
+
+    # Remove category topics
     category_topic_ids = Category.pluck(:topic_id).compact!
     if category_topic_ids.present?
-      topics = topics.where("id NOT IN (?)", category_topic_ids)
+      topics = topics.where("topics.id NOT IN (?)", category_topic_ids)
+    end
+
+    # Remove muted categories
+    muted_category_ids = CategoryUser.where(user_id: user.id, notification_level: CategoryUser.notification_levels[:muted]).pluck(:category_id)
+    if muted_category_ids.present?
+      topics = topics.where("topics.category_id NOT IN (?)", muted_category_ids)
     end
 
     topics
+  end
+
+  # Using the digest query, figure out what's  new for a user since last seen
+  def self.new_since_last_seen(user, since, featured_topic_ids)
+    topics = Topic.for_digest(user, since)
+    topics.where("topics.id NOT IN (?)", featured_topic_ids)
   end
 
   def update_meta_data(data)
@@ -318,14 +358,22 @@ class Topic < ActiveRecord::Base
     return [] unless title.present?
     return [] unless raw.present?
 
-    # For now, we only match on title. We'll probably add body later on, hence the API hook
-    Topic.select(sanitize_sql_array(["topics.*, similarity(topics.title, :title) AS similarity", title: title]))
-         .visible
-         .where(closed: false, archived: false)
-         .secured(Guardian.new(user))
-         .listable_topics
-         .limit(SiteSetting.max_similar_results)
-         .order('similarity desc')
+    similar = Topic.select(sanitize_sql_array(["topics.*, similarity(topics.title, :title) + similarity(p.raw, :raw) AS similarity", title: title, raw: raw]))
+                     .visible
+                     .where(closed: false, archived: false)
+                     .secured(Guardian.new(user))
+                     .listable_topics
+                     .joins("LEFT OUTER JOIN posts AS p ON p.topic_id = topics.id AND p.post_number = 1")
+                     .limit(SiteSetting.max_similar_results)
+                     .order('similarity desc')
+
+    # Exclude category definitions from similar topic suggestions
+    exclude_topic_ids = Category.pluck(:topic_id).compact!
+    if exclude_topic_ids.present?
+      similar = similar.where("topics.id NOT IN (?)", exclude_topic_ids)
+    end
+
+    similar
   end
 
   def update_status(status, enabled, user)
@@ -618,8 +666,14 @@ class Topic < ActiveRecord::Base
     TopicUser.change(user.id, id, cleared_pinned_at: Time.now)
   end
 
-  def update_pinned(status)
+  def re_pin_for(user)
+    return unless user.present?
+    TopicUser.change(user.id, id, cleared_pinned_at: nil)
+  end
+
+  def update_pinned(status, global=false)
     update_column(:pinned_at, status ? Time.now : nil)
+    update_column(:pinned_globally, global)
   end
 
   def draft_key
@@ -707,6 +761,14 @@ class Topic < ActiveRecord::Base
     end
   end
 
+  def has_topic_embed?
+    TopicEmbed.where(topic_id: id).exists?
+  end
+
+  def expandable_first_post?
+    SiteSetting.embeddable_host.present? && SiteSetting.embed_truncate? && has_topic_embed?
+  end
+
   private
 
   def update_category_topic_count_by(num)
@@ -779,6 +841,7 @@ end
 #  participant_count       :integer          default(1)
 #  word_count              :integer
 #  excerpt                 :string(1000)
+#  pinned_globally         :boolean          default(FALSE), not null
 #
 # Indexes
 #

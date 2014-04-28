@@ -1,5 +1,3 @@
-@import "common/foundation/variables";
-
 .gap {
   background-color: lighten($secondary_background_color, 76%);
   padding: 5px 15px;
@@ -477,4 +475,8 @@ blockquote {
 .gutter { display: none; }
 
 .posts-wrapper {  position: relative;
+}
+
+.topic-body.highlighted {
+  background-color: $emphasis_background_color;
 }

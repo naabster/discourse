@@ -62,6 +62,17 @@ describe PostsController do
       let(:action) { :show }
       let(:params) { {id: post.id} }
     end
+
+    it 'gets all the expected fields' do
+      # non fabricated test
+      new_post = create_post
+      xhr :get, :show, {id: new_post.id}
+      parsed = JSON.parse(response.body)
+      parsed["topic_slug"].should == new_post.topic.slug
+      parsed["moderator"].should == false
+      parsed["username"].should == new_post.user.username
+      parsed["cooked"].should == new_post.cooked
+    end
   end
 
   describe 'by_number' do
@@ -490,4 +501,21 @@ describe PostsController do
 
   end
 
+  describe 'expandable embedded posts' do
+    let(:post) { Fabricate(:post) }
+
+    it "raises an error when you can't see the post" do
+      Guardian.any_instance.expects(:can_see?).with(post).returns(false)
+      xhr :get, :expand_embed, id: post.id
+      response.should_not be_success
+    end
+
+    it "retrieves the body when you can see the post" do
+      Guardian.any_instance.expects(:can_see?).with(post).returns(true)
+      TopicEmbed.expects(:expanded_for).with(post).returns("full content")
+      xhr :get, :expand_embed, id: post.id
+      response.should be_success
+      ::JSON.parse(response.body)['cooked'].should == "full content"
+    end
+  end
 end

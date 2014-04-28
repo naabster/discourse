@@ -27,11 +27,23 @@ class ListController < ApplicationController
     # anonymous filters
     Discourse.anonymous_filters,
     Discourse.anonymous_filters.map { |f| "#{f}_feed".to_sym },
-    # categories
-    @@categories,
-    # top
+    # anonymous categorized filters
+    Discourse.anonymous_filters.map { |f| "category_#{f}".to_sym },
+    Discourse.anonymous_filters.map { |f| "category_none_#{f}".to_sym },
+    Discourse.anonymous_filters.map { |f| "parent_category_category_#{f}".to_sym },
+    Discourse.anonymous_filters.map { |f| "parent_category_category_none_#{f}".to_sym },
+    # category feeds
+    :category_feed,
+    # top summaries
     :top,
-    TopTopic.periods.map { |p| "top_#{p}".to_sym }
+    :category_top,
+    :category_none_top,
+    :parent_category_category_top,
+    # top pages (ie. with a period)
+    TopTopic.periods.map { |p| "top_#{p}".to_sym },
+    TopTopic.periods.map { |p| "category_top_#{p}".to_sym },
+    TopTopic.periods.map { |p| "category_none_top_#{p}".to_sym },
+    TopTopic.periods.map { |p| "parent_category_category_top_#{p}".to_sym },
   ].flatten
 
   # Create our filters
@@ -224,8 +236,8 @@ class ListController < ApplicationController
     route_params = {format: 'json'}
     route_params[:category]        = @category.slug_for_url if @category
     route_params[:parent_category] = @category.parent_category.slug_for_url if @category && @category.parent_category
-    route_params[:sort_order]      = opts[:sort_order] if opts[:sort_order].present?
-    route_params[:sort_descending] = opts[:sort_descending] if opts[:sort_descending].present?
+    route_params[:order]     = opts[:order] if opts[:order].present?
+    route_params[:ascending] = opts[:ascending] if opts[:ascending].present?
     route_params
   end
 
@@ -253,8 +265,8 @@ class ListController < ApplicationController
       topic_ids: param_to_integer_list(:topic_ids),
       exclude_category: (params[:exclude_category] || select_menu_item.try(:filter)),
       category: params[:category],
-      sort_order: params[:sort_order],
-      sort_descending: params[:sort_descending],
+      order: params[:order],
+      ascending: params[:ascending],
       status: params[:status]
     }
     options[:no_subcategories] = true if params[:no_subcategories] == 'true'

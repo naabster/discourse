@@ -3,7 +3,6 @@ require_dependency 'pretty_text'
 require_dependency 'rate_limiter'
 require_dependency 'post_revisor'
 require_dependency 'enum'
-require_dependency 'trashable'
 require_dependency 'post_analyzer'
 require_dependency 'validators/post_validator'
 require_dependency 'plugin/filter'
@@ -163,9 +162,9 @@ class Post < ActiveRecord::Base
 
     hosts = SiteSetting
               .white_listed_spam_host_domains
-              .split(",")
+              .split('|')
               .map{|h| h.strip}
-              .reject{|h| !h.include?(".")}
+              .reject{|h| !h.include?('.')}
 
     hosts << GlobalSetting.hostname
 
@@ -312,6 +311,16 @@ class Post < ActiveRecord::Base
 
   def revise(updated_by, new_raw, opts = {})
     PostRevisor.new(self).revise!(updated_by, new_raw, opts)
+  end
+
+  def set_owner(new_user, actor)
+    revise(actor, self.raw, {
+        new_user: new_user,
+        changed_owner: true,
+        edit_reason: I18n.t('change_owner.post_revision_text',
+                            old_user: self.user.username_lower,
+                            new_user: new_user.username_lower)
+    })
   end
 
   before_create do
@@ -472,7 +481,7 @@ class Post < ActiveRecord::Base
   end
 
   def save_revision
-    modifications = changes.extract!(:raw, :cooked, :edit_reason)
+    modifications = changes.extract!(:raw, :cooked, :edit_reason, :user_id)
     # make sure cooked is always present (oneboxes might not change the cooked post)
     modifications["cooked"] = [self.cooked, self.cooked] unless modifications["cooked"].present?
     PostRevision.create!(

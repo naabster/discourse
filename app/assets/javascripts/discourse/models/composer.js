@@ -161,7 +161,7 @@ Discourse.Composer = Discourse.Model.extend({
     return this.get('reply') !== this.get('originalText');
   }.property('reply', 'originalText'),
 
-/**
+  /**
     Number of missing characters in the title until valid.
 
     @property missingTitleCharacters
@@ -411,7 +411,7 @@ Discourse.Composer = Discourse.Model.extend({
       raw: this.get('reply'),
       editReason: opts.editReason,
       imageSizes: opts.imageSizes,
-      cooked: $('#wmd-preview').html()
+      cooked: this.getCookedHtml()
     });
     this.set('composeState', CLOSED);
 
@@ -448,11 +448,12 @@ Discourse.Composer = Discourse.Model.extend({
       topic_id: this.get('topic.id'),
       reply_to_post_number: post ? post.get('post_number') : null,
       imageSizes: opts.imageSizes,
-      cooked: $('#wmd-preview').html(),
+      cooked: this.getCookedHtml(),
       reply_count: 0,
       display_username: currentUser.get('name'),
       username: currentUser.get('username'),
       user_id: currentUser.get('id'),
+      avatar_template: currentUser.get('avatar_template'),
       metaData: this.get('metaData'),
       archetype: this.get('archetypeId'),
       post_type: Discourse.Site.currentProp('post_types.regular'),
@@ -532,6 +533,10 @@ Discourse.Composer = Discourse.Model.extend({
         promise.reject(parsedError);
       });
     });
+  },
+
+  getCookedHtml: function() {
+    return $('#wmd-preview').html().replace(/<span class="marker"><\/span>/g, '');
   },
 
   saveDraft: function() {

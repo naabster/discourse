@@ -1,7 +1,3 @@
-@import "common/foundation/variables";
-@import "common/foundation/mixins";
-@import "common/foundation/helpers";
-
 .gap {
   background-color: lighten($secondary_background_color, 76%);
   padding: 5px 0;
@@ -15,7 +11,11 @@
   }
 
   @include medium-width {
-    width: 800px;
+    width: 795px;
+  }
+
+  @include small-width {
+    width: 815px;
   }
 }
 
@@ -30,7 +30,9 @@
   margin-left: 0;
 }
 
-h1 .topic-statuses .topic-status i {margin-right: 5px;}
+h1 .topic-statuses .topic-status i {
+  font-size: 20px;
+}
 
 .logo-small {
   margin-right: 8px;
@@ -58,11 +60,12 @@ h1 .topic-statuses .topic-status i {margin-right: 5px;}
   font-size: 12px;
   margin-left: -8px;
   background: $primary_background_color;
+  color: $secondary_text_color;
   @include medium-width {
-  left: 107px;
+    left: 107px;
   }
   @include small-width {
-  left: 103px;
+    left: 103px;
   }
 }
 
@@ -289,6 +292,13 @@ a.star {
     list-style: none;
   }
 
+  span.domain {
+    font-size: 10px;
+    color: $secondary_text_color;
+  }
+
+
+
   .avatars {
     > div {
       float: left;
@@ -320,11 +330,10 @@ a.star {
       }
     }
     a, .number {
-      font-weight: bold;
       line-height: 20px;
     }
-    .number {
-      color: $link-color;
+    .number, i {
+      color: $secondary_text_color;
     }
     .avatar + a {
       float: left;
@@ -417,6 +426,9 @@ span.post-count {
   opacity: .8;
 }
 
+button.expand-post {
+  margin-top: 10px;
+}
 
 #topic-footer-buttons {
   .btn {
@@ -452,13 +464,19 @@ iframe {
   float: left;
   width: 78%;
   max-width: 800px;
-  .topic-statuses {margin-right: 5px;}
+  .topic-statuses {
+  i {  color: $primary_text_color;
+}
+  .unpinned {  color: $secondary_text_color;}
+
+  }
+  .topic-link {color: $primary_text_color;}
 }
 
 
 @include medium-width {
   .extra-info-wrapper {
-  max-width: 720px;
+  max-width: 740px;
 }
 }
 
@@ -477,12 +495,14 @@ iframe {
   }
 
   a.star {
-    margin-right: 8px;
+    margin-right: 7px;
     font-size: 20px;
     margin-top: 6px;
   }
 
-  .topic-statuses {margin-top: -2px;}
+  .topic-statuses {
+    margin-top: -2px;
+  }
 
   .badge-category {
     vertical-align: top;
@@ -508,11 +528,16 @@ iframe {
     text-align: center;
 
     a {
-      display: block;
       margin: 0 auto;
       width: 45px;
-      display: inline;
       word-wrap: break-word;
+      color: $primary_text_color;
+      font-weight: normal;
+      line-height: 1.3;
+    }
+
+    .new-user a {
+      color: $secondary_text_color;
     }
 
     a.user-group {
@@ -521,18 +546,15 @@ iframe {
     }
 
     h3 a {
-      display: inline;
       width: auto;
 
     }
 
     h3.full-name {
-      display: inline;
       font-weight: normal;
       font-size: 12px;
       margin-top: 2px;
       a {color: $secondary_text_color;}
-
     }
   }
 
@@ -540,7 +562,7 @@ iframe {
 
 }
 
-.open>.dropdown-menu {
+.open >.dropdown-menu {
   display: block;
 }
 
@@ -615,13 +637,6 @@ iframe {
     }
 }
 
-#selected-posts {
-  padding-left: 20px;
-  .btn {
-    margin-bottom: 10px;
-  }
-}
-
 .post-select {
   float: right;
   margin-right: 20px;
@@ -641,10 +656,6 @@ iframe {
 
 .deleted-user-avatar {
   font-size: 36px;
-}
-
-.new-user a {
-  color: $secondary_text_color;
 }
 
 .staff a {
@@ -782,7 +793,7 @@ blockquote { /* solo quotes */
 
 .span14 { width: 70%; padding-left: 1%; } //main content
 .span2 {width: 9%; }
-.span11 {width: 83%; padding-left: 2%; padding-right: 1%;}
+.span11 {width: 85%; padding-left: 2%;}
 .span5 {width: 19%; padding-left: 1%; }
 
 
@@ -793,6 +804,7 @@ blockquote { /* solo quotes */
 
 .row:before, .row:after {display: table; content: "";}
 .row:after {clear: both;}
+
 
 .embedded-posts {
   h1, h2, h3 {margin: 10px 0;}
@@ -863,6 +875,10 @@ blockquote { /* solo quotes */
   font-weight: normal;
   line-height: 18px;
   color: $primary_text_color;
+
+  & > div {
+    margin-left: 26px;
+  }
 }
 .dropdown-menu li > a:hover,
 .dropdown-menu .active > a,
@@ -871,23 +887,41 @@ blockquote { /* solo quotes */
   text-decoration: none;
   background-color: $emphasis_text_color;
 }
+
+.dropdown-menu .disabled > a,
+.dropdown-menu .disabled > a:hover {
+  text-decoration: none;
+  color: $primary_text_color;
+  background-color: $moderator_background_color;
+  cursor: default;
+}
+
+.dropdown-menu .icon {
+  margin-top: 3px;
+  float: left;
+  font-size: 18px;
+}
+
 .open > .dropdown-menu {
   display: block;
-clear: both;
+  clear: both;
 }
+
 .fade {
   opacity: 0;
   -webkit-transition: opacity 0.15s linear;
   transition: opacity 0.15s linear;
 }
+
 .fade.in {
   opacity: 1;
 }
 
 #selected-posts {
 
+  padding-left: 20px;
   margin-left: 330px;
-  width: 12%;
+  width: 200px;
   position: fixed;
   z-index: 1000;
   left: 50%;
@@ -899,7 +933,7 @@ clear: both;
 
 
   button {
-    width: 160px;
+    width: 180px;
     margin: 4px auto;
     display: inline-block;
     text-align: left;
@@ -930,9 +964,8 @@ clear: both;
     border: none;
     color: $tertiary_text_color;
     font-weight: normal;
-
-      color: $tertiary_text_color;
-      background: $btn-primary-background-color;
+    margin-bottom: 10px;
+    background: $btn-primary-background-color;
 
     &[href] {
       color: $tertiary_text_color;
@@ -970,7 +1003,7 @@ clear: both;
       }
     }
   }
- article.boxed {
+  article.boxed {
     position: relative;
     line-height: 21px;
 
@@ -987,7 +1020,6 @@ clear: both;
         border-bottom: 1px solid $primary_border_color;
         border-right: 1px solid $primary_border_color;
         color: $secondary_text_color;
-
       }
     }
   }

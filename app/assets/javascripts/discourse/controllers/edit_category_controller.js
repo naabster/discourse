@@ -58,9 +58,7 @@ Discourse.EditCategoryController = Discourse.ObjectController.extend(Discourse.M
     return false;
   }.property('saving', 'name', 'color', 'deleting'),
 
-  emailInEnabled: function() {
-    return Discourse.SiteSettings.email_in;
-  },
+  emailInEnabled: Discourse.computed.setting('email_in'),
 
   deleteDisabled: function() {
     return (this.get('deleting') || this.get('saving') || false);
@@ -70,18 +68,16 @@ Discourse.EditCategoryController = Discourse.ObjectController.extend(Discourse.M
     return "background-color: #" + (this.get('color')) + "; color: #" + (this.get('text_color')) + ";";
   }.property('color', 'text_color'),
 
-  parentStyle: function() {
-    if (this.get('parent_category_id')) {
-      var parent = Discourse.Category.list().findBy('id', parseInt(this.get('parent_category_id'), 10));
-      if (parent) {
-        return 'background-color: #' + parent.get('color') + ';';
-      } else {
-        return 'display: none';
-      }
-    } else {
-      return 'display: none;';
-    }
-  }.property('parent_category_id'),
+  categoryBadgePreview: function() {
+    var c = Discourse.Category.create({
+      name: this.get('categoryName'),
+      color: this.get('color'),
+      text_color: this.get('text_color'),
+      parent_category_id: parseInt(this.get('parent_category_id'),10),
+      read_restricted: this.get('model.read_restricted')
+    });
+    return Discourse.HTML.categoryBadge(c, {showParent: true, link: false});
+  }.property('parent_category_id', 'categoryName', 'color', 'text_color'),
 
   // background colors are available as a pipe-separated string
   backgroundColors: function() {

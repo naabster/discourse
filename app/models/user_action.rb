@@ -322,4 +322,3 @@ end
 #  index_actions_on_acting_user_id           (acting_user_id)
 #  index_actions_on_user_id_and_action_type  (user_id,action_type)
 #
-

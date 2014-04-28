@@ -4,10 +4,13 @@ class TopicEmbed < ActiveRecord::Base
   belongs_to :topic
   belongs_to :post
   validates_presence_of :embed_url
-  validates_presence_of :content_sha1
 
   def self.normalize_url(url)
-    url.downcase.sub(/\/$/, '').sub(/\-+/, '-')
+    url.downcase.sub(/\/$/, '').sub(/\-+/, '-').strip
+  end
+
+  def self.imported_from_html(url)
+    "\n<hr>\n<small>#{I18n.t('embed.imported_from', link: "<a href='#{url}'>#{url}</a>")}</small>\n"
   end
 
   # Import an article from a source (RSS/Atom/Other)
@@ -17,7 +20,7 @@ class TopicEmbed < ActiveRecord::Base
     if SiteSetting.embed_truncate
       contents = first_paragraph_from(contents)
     end
-    contents << "\n<hr>\n<small>#{I18n.t('embed.imported_from', link: "<a href='#{url}'>#{url}</a>")}</small>\n"
+    contents << imported_from_html(url)
 
     url = normalize_url(url)
 
@@ -56,16 +59,49 @@ class TopicEmbed < ActiveRecord::Base
     post
   end
 
-  def self.import_remote(user, url, opts=nil)
+  def self.find_remote(url)
     require 'ruby-readability'
 
     url = normalize_url(url)
-    opts = opts || {}
-    doc = Readability::Document.new(open(url).read,
-                                        tags: %w[div p code pre h1 h2 h3 b em i strong a img ul li ol],
-                                        attributes: %w[href src])
+    original_uri = URI.parse(url)
+    opts = {
+      tags: %w[div p code pre h1 h2 h3 b em i strong a img ul li ol blockquote],
+      attributes: %w[href src],
+      remove_empty_nodes: false
+    }
 
-    TopicEmbed.import(user, url, opts[:title] || doc.title, doc.content)
+    opts[:whitelist] = SiteSetting.embed_whitelist_selector if SiteSetting.embed_whitelist_selector.present?
+    opts[:blacklist] = SiteSetting.embed_blacklist_selector if SiteSetting.embed_blacklist_selector.present?
+
+    doc = Readability::Document.new(open(url).read, opts)
+
+    tags = {'img' => 'src', 'script' => 'src', 'a' => 'href'}
+    title = doc.title
+    doc = Nokogiri::HTML(doc.content)
+    doc.search(tags.keys.join(',')).each do |node|
+      url_param = tags[node.name]
+      src = node[url_param]
+      unless (src.empty?)
+        begin
+          uri = URI.parse(src)
+          unless uri.host
+            uri.scheme = original_uri.scheme
+            uri.host = original_uri.host
+            node[url_param] = uri.to_s
+          end
+        rescue URI::InvalidURIError
+          # If there is a mistyped URL, just do nothing
+        end
+      end
+    end
+
+    [title, doc.to_html]
+  end
+
+  def self.import_remote(user, url, opts=nil)
+    opts = opts || {}
+    title, body = find_remote(url)
+    TopicEmbed.import(user, url, opts[:title] || title, body)
   end
 
   # Convert any relative URLs to absolute. RSS is annoying for this.
@@ -111,6 +147,16 @@ class TopicEmbed < ActiveRecord::Base
     # If there is no first paragaph, return the first div (onebox)
     doc.css('div').first
   end
+
+  def self.expanded_for(post)
+    Rails.cache.fetch("embed-topic:#{post.topic_id}", expires_in: 10.minutes) do
+      url = TopicEmbed.where(topic_id: post.topic_id).pluck(:embed_url).first
+      title, body = TopicEmbed.find_remote(url)
+      body << TopicEmbed.imported_from_html(url)
+      body
+    end
+  end
+
 end
 
 # == Schema Information
@@ -121,7 +167,7 @@ end
 #  topic_id     :integer          not null
 #  post_id      :integer          not null
 #  embed_url    :string(255)      not null
-#  content_sha1 :string(40)       not null
+#  content_sha1 :string(40)
 #  created_at   :datetime
 #  updated_at   :datetime
 #

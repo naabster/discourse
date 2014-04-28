@@ -6,7 +6,6 @@ require_dependency 'summarize'
 require_dependency 'discourse'
 require_dependency 'post_destroyer'
 require_dependency 'user_name_suggester'
-require_dependency 'roleable'
 require_dependency 'pretty_text'
 require_dependency 'url_helper'
 
@@ -32,6 +31,7 @@ class User < ActiveRecord::Base
   has_many :invites, dependent: :destroy
   has_many :topic_links, dependent: :destroy
   has_many :uploads
+  has_many :user_custom_fields, dependent: :destroy
 
   has_one :facebook_user_info, dependent: :destroy
   has_one :twitter_user_info, dependent: :destroy
@@ -40,6 +40,7 @@ class User < ActiveRecord::Base
   has_one :user_stat, dependent: :destroy
   has_one :single_sign_on_record, dependent: :destroy
   belongs_to :approved_by, class_name: 'User'
+  belongs_to :primary_group, class_name: 'Group'
 
   has_many :group_users, dependent: :destroy
   has_many :groups, through: :group_users
@@ -68,6 +69,7 @@ class User < ActiveRecord::Base
 
   after_save :update_tracked_topics
   after_save :clear_global_notice_if_needed
+  after_save :save_custom_fields
 
   after_create :create_email_token
   after_create :create_user_stat
@@ -102,12 +104,12 @@ class User < ActiveRecord::Base
     if SiteSetting.enforce_global_nicknames
       GLOBAL_USERNAME_LENGTH_RANGE
     else
-      SiteSetting.min_username_length.to_i..GLOBAL_USERNAME_LENGTH_RANGE.end
+      SiteSetting.min_username_length.to_i..SiteSetting.max_username_length.to_i
     end
   end
 
   def custom_groups
-    groups.where(automatic: false)
+    groups.where(automatic: false, visible: true)
   end
 
   def self.username_available?(username)
@@ -200,7 +202,7 @@ class User < ActiveRecord::Base
   def approve(approved_by, send_mail=true)
     self.approved = true
 
-    if Fixnum === approved_by
+    if approved_by.is_a?(Fixnum)
       self.approved_by_id = approved_by
     else
       self.approved_by = approved_by
@@ -492,6 +494,14 @@ class User < ActiveRecord::Base
     Summarize.new(bio_cooked).summary
   end
 
+  def badge_count
+    user_badges.count
+  end
+
+  def featured_user_badges
+    user_badges.joins(:badge).order('badges.badge_type_id ASC, badges.grant_count ASC').includes(:user, :granted_by, badge: :badge_type).limit(3)
+  end
+
   def self.count_by_signup_date(sinceDaysAgo=30)
     where('created_at > ?', sinceDaysAgo.days.ago).group('date(created_at)').order('date(created_at)').count
   end
@@ -527,10 +537,15 @@ class User < ActiveRecord::Base
     created_at > 1.day.ago
   end
 
-  def upload_avatar(avatar)
+  def upload_avatar(upload)
     self.uploaded_avatar_template = nil
-    self.uploaded_avatar = avatar
+    self.uploaded_avatar = upload
     self.use_uploaded_avatar = true
+    self.save!
+  end
+
+  def upload_profile_background(upload)
+    self.profile_background = upload.url
     self.save!
   end
 
@@ -560,6 +575,8 @@ class User < ActiveRecord::Base
   end
 
   def redirected_to_top_reason
+    # redirect is enabled
+    return unless SiteSetting.redirect_users_to_top_page
     # top must be in the top_menu
     return unless SiteSetting.top_menu =~ /top/i
     # there should be enough topics
@@ -572,7 +589,34 @@ class User < ActiveRecord::Base
     nil
   end
 
+  def custom_fields
+    @custom_fields ||= begin
+      @custom_fields_orig = Hash[*user_custom_fields.pluck(:name,:value).flatten]
+      @custom_fields_orig.dup
+    end
+  end
+
   protected
+
+  def save_custom_fields
+    if @custom_fields && @custom_fields_orig != @custom_fields
+      dup = @custom_fields.dup
+
+      user_custom_fields.each do |f|
+        if dup[f.name] != f.value
+          f.destroy
+        else
+          dup.remove[f.name]
+        end
+      end
+
+      dup.each do |k,v|
+        user_custom_fields.create(name: k, value: v)
+      end
+
+      @custom_fields_orig = @custom_fields
+    end
+  end
 
   def cook
     if bio_raw.present?
@@ -685,7 +729,7 @@ end
 # Table name: users
 #
 #  id                            :integer          not null, primary key
-#  username                      :string(20)       not null
+#  username                      :string(60)       not null
 #  created_at                    :datetime         not null
 #  updated_at                    :datetime         not null
 #  name                          :string(255)
@@ -696,7 +740,7 @@ end
 #  password_hash                 :string(64)
 #  salt                          :string(32)
 #  active                        :boolean
-#  username_lower                :string(20)       not null
+#  username_lower                :string(60)       not null
 #  auth_token                    :string(32)
 #  last_seen_at                  :datetime
 #  website                       :string(255)

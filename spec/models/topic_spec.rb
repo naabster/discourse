@@ -120,16 +120,40 @@ describe Topic do
     let(:topic_image) { build_topic_with_title("Topic with <img src='something'> image in its title" ) }
     let(:topic_script) { build_topic_with_title("Topic with <script>alert('title')</script> script in its title" ) }
 
-    it "escapes script contents" do
-      topic_script.title.should == "Topic with script in its title"
+    context "title_sanitize disabled" do
+
+      before { SiteSetting.stubs(:title_sanitize).returns(false) }
+
+      it "escapes script contents" do
+        topic_script.fancy_title.should == "Topic with &lt;script&gt;alert(&lsquo;title&rsquo;)&lt;/script&gt; script in its title"
+      end
+
+      it "escapes bold contents" do
+        topic_bold.fancy_title.should == "Topic with &lt;b&gt;bold&lt;/b&gt; text in its title"
+      end
+
+      it "escapes image contents" do
+        topic_image.fancy_title.should == "Topic with &lt;img src=&lsquo;something&rsquo;&gt; image in its title"
+      end
+
     end
 
-    it "escapes bold contents" do
-      topic_bold.title.should == "Topic with bold text in its title"
-    end
+    context "title_sanitize enabled" do
 
-    it "escapes image contents" do
-      topic_image.title.should == "Topic with image in its title"
+      before { SiteSetting.stubs(:title_sanitize).returns(true) }
+
+      it "removes script contents" do
+        topic_script.fancy_title.should == "Topic with script in its title"
+      end
+
+      it "removes bold contents" do
+        topic_bold.fancy_title.should == "Topic with bold text in its title"
+      end
+
+      it "removes image contents" do
+        topic_image.fancy_title.should == "Topic with image in its title"
+      end
+
     end
 
   end
@@ -142,8 +166,8 @@ describe Topic do
         SiteSetting.stubs(:title_fancy_entities).returns(false)
       end
 
-      it "doesn't change the title to add entities" do
-        topic.fancy_title.should == topic.title
+      it "doesn't add entities to the title" do
+        topic.fancy_title.should == "&quot;this topic&quot; -- has ``fancy stuff&#39;&#39;"
       end
     end
 
@@ -200,6 +224,14 @@ describe Topic do
 
     it 'returns blank with nil params' do
       Topic.similar_to(nil, nil).should be_blank
+    end
+
+    context "with a category definition" do
+      let!(:category) { Fabricate(:category) }
+
+      it "excludes the category definition topic from similar_to" do
+        Topic.similar_to('category definition for', "no body").should be_blank
+      end
     end
 
     context 'with a similar topic' do
@@ -1186,17 +1218,17 @@ describe Topic do
     let(:user) { Fabricate.build(:user) }
 
     it "returns none when there are no topics" do
-      Topic.for_digest(user, 1.year.ago).should be_blank
+      Topic.for_digest(user, 1.year.ago, top_order: true).should be_blank
     end
 
     it "doesn't return category topics" do
       Fabricate(:category)
-      Topic.for_digest(user, 1.year.ago).should be_blank
+      Topic.for_digest(user, 1.year.ago, top_order: true).should be_blank
     end
 
     it "returns regular topics" do
       topic = Fabricate(:topic)
-      Topic.for_digest(user, 1.year.ago).should == [topic]
+      Topic.for_digest(user, 1.year.ago, top_order: true).should == [topic]
     end
 
   end
@@ -1319,5 +1351,36 @@ describe Topic do
       Topic.calculate_avg_time
       Topic.calculate_avg_time(1.day.ago)
     end
+  end
+
+  describe "expandable_first_post?" do
+    let(:topic) { Fabricate.build(:topic) }
+
+    before do
+      SiteSetting.stubs(:embeddable_host).returns("http://eviltrout.com")
+      SiteSetting.stubs(:embed_truncate?).returns(true)
+      topic.stubs(:has_topic_embed?).returns(true)
+    end
+
+    it "is true with the correct settings and topic_embed" do
+      topic.expandable_first_post?.should be_true
+    end
+
+    it "is false if embeddable_host is blank" do
+      SiteSetting.stubs(:embeddable_host).returns(nil)
+      topic.expandable_first_post?.should be_false
+    end
+
+    it "is false if embed_truncate? is false" do
+      SiteSetting.stubs(:embed_truncate?).returns(false)
+      topic.expandable_first_post?.should be_false
+    end
+
+    it "is false if has_topic_embed? is false" do
+      topic.stubs(:has_topic_embed?).returns(false)
+      topic.expandable_first_post?.should be_false
+    end
+
+
   end
 end
