@@ -92,11 +92,11 @@ var run = function(){
 page.runTests = function(){
 
   test("at least one topic shows up", function() {
-    return $('#topic-list tbody tr').length > 0;
+    return $('.topic-list tbody tr').length > 0;
   });
 
   test("expect a log in button", function(){
-    return $('.current-username .btn').text() === 'Log In';
+    return $('.login-button').text().trim() === 'Log In';
   });
 
   navigate("navigate to first topic", function(){
@@ -126,7 +126,7 @@ page.runTests = function(){
   });
 
   test("has details",function(){
-    return $('.details').length === 1;
+    return $('#user-card .names').length === 1;
   });
 
   run();

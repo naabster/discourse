@@ -1,30 +1,53 @@
-/**
-  This route handles requests for topics
+var isTransitioning = false,
+    scheduledReplace = null,
+    lastScrollPos = null,
+    SCROLL_DELAY = 500;
 
-  @class TopicRoute
-  @extends Discourse.Route
-  @namespace Discourse
-  @module Discourse
-**/
 Discourse.TopicRoute = Discourse.Route.extend({
-  redirect: function() { Discourse.redirectIfLoginRequired(this); },
+  redirect: function() { return this.redirectIfLoginRequired(); },
 
   queryParams: {
     filter: { replace: true },
-    username_filters: { replace: true }
+    username_filters: { replace: true },
+    show_deleted: { replace: true }
+  },
+
+  titleToken: function() {
+    var model = this.modelFor('topic');
+    if (model) {
+      var result = model.get('title'),
+          cat = model.get('category');
+
+      if (cat && !cat.get('isUncategorized')) {
+        var catName = cat.get('name'),
+            parentCategory = cat.get('parentCategory');
+
+        if (parentCategory) {
+          catName = parentCategory.get('name') + " / " + catName;
+        }
+
+        return [result, catName];
+      }
+      return result;
+    }
   },
 
   actions: {
-    // Modals that can pop up within a topic
-    showPosterExpansion: function(post) {
-      this.controllerFor('posterExpansion').show(post);
+
+    showTopicAdminMenu: function() {
+      this.controllerFor("topic-admin-menu").send("show");
     },
 
-    composePrivateMessage: function(user) {
-      var self = this;
-      this.transitionTo('userActivity', user).then(function () {
-        self.controllerFor('userActivity').send('composePrivateMessage');
-      });
+    // Modals that can pop up within a topic
+    expandPostUser: function(post) {
+      this.controllerFor('user-card').show(post.get('username'), post.get('uploaded_avatar_id'));
+    },
+
+    expandPostUsername: function(username) {
+      username = username.replace(/^@/, '');
+      if (!Em.isEmpty(username)) {
+        this.controllerFor('user-card').show(username);
+      }
     },
 
     showFlags: function(post) {
@@ -33,7 +56,6 @@ Discourse.TopicRoute = Discourse.Route.extend({
     },
 
     showFlagTopic: function(topic) {
-      //Discourse.Route.showModal(this, 'flagTopic', topic);
       Discourse.Route.showModal(this, 'flag', topic);
       this.controllerFor('flag').setProperties({ selected: null, flagTopic: true });
     },
@@ -60,8 +82,13 @@ Discourse.TopicRoute = Discourse.Route.extend({
 
     showHistory: function(post) {
       Discourse.Route.showModal(this, 'history', post);
-      this.controllerFor('history').refresh(post.get("id"), post.get("version"));
+      this.controllerFor('history').refresh(post.get("id"), "latest");
       this.controllerFor('modal').set('modalClass', 'history-modal');
+    },
+
+    showRawEmail: function(post) {
+      Discourse.Route.showModal(this, 'raw-email', post);
+      this.controllerFor('raw_email').loadRawEmail(post.get("id"));
     },
 
     mergeTopic: function() {
@@ -69,7 +96,7 @@ Discourse.TopicRoute = Discourse.Route.extend({
     },
 
     splitTopic: function() {
-      Discourse.Route.showModal(this, 'splitTopic', this.modelFor('topic'));
+      Discourse.Route.showModal(this, 'split-topic', this.modelFor('topic'));
     },
 
     changeOwner: function() {
@@ -77,25 +104,46 @@ Discourse.TopicRoute = Discourse.Route.extend({
     },
 
     // Use replaceState to update the URL once it changes
-    postChangedRoute: Discourse.debounce(function(currentPost) {
+    postChangedRoute: function(currentPost) {
+
       // do nothing if we are transitioning to another route
-      if (this.get("isTransitioning")) { return; }
+      if (isTransitioning || Discourse.TopicRoute.disableReplaceState) { return; }
 
       var topic = this.modelFor('topic');
       if (topic && currentPost) {
         var postUrl = topic.get('url');
         if (currentPost > 1) { postUrl += "/" + currentPost; }
-        Discourse.URL.replaceState(postUrl);
+
+        Em.run.cancel(scheduledReplace);
+        lastScrollPos = parseInt($(document).scrollTop(), 10);
+        scheduledReplace = Em.run.later(this, '_replaceUnlessScrolling', postUrl, SCROLL_DELAY);
       }
-    }, 150),
+    },
 
-    willTransition: function() { this.set("isTransitioning", true); }
+    willTransition: function() {
+      this.controllerFor("quote-button").deselectText();
+      Em.run.cancel(scheduledReplace);
+      isTransitioning = true;
+      return true;
+    }
+  },
 
+  // replaceState can be very slow on Android Chrome. This function debounces replaceState
+  // within a topic until scrolling stops
+  _replaceUnlessScrolling: function(url) {
+    var currentPos = parseInt($(document).scrollTop(), 10);
+    if (currentPos === lastScrollPos) {
+      Discourse.URL.replaceState(url);
+      return;
+    }
+    lastScrollPos = currentPos;
+    scheduledReplace = Em.run.later(this, '_replaceUnlessScrolling', url, SCROLL_DELAY);
   },
 
   setupParams: function(topic, params) {
     var postStream = topic.get('postStream');
     postStream.set('summary', Em.get(params, 'filter') === 'summary');
+    postStream.set('show_deleted', !!Em.get(params, 'show_deleted'));
 
     var usernames = Em.get(params, 'username_filters'),
         userFilters = postStream.get('userFilters');
@@ -125,7 +173,7 @@ Discourse.TopicRoute = Discourse.Route.extend({
 
   activate: function() {
     this._super();
-    this.set("isTransitioning", false);
+    isTransitioning = false;
 
     var topic = this.modelFor('topic');
     Discourse.Session.currentProp('lastTopicIdViewed', parseInt(topic.get('id'), 10));
@@ -137,7 +185,7 @@ Discourse.TopicRoute = Discourse.Route.extend({
 
     // Clear the search context
     this.controllerFor('search').set('searchContext', null);
-    this.controllerFor('posterExpansion').set('visible', false);
+    this.controllerFor('user-card').set('visible', false);
 
     var topicController = this.controllerFor('topic'),
         postStream = topicController.get('postStream');
@@ -156,6 +204,9 @@ Discourse.TopicRoute = Discourse.Route.extend({
   },
 
   setupController: function(controller, model) {
+    // In case we navigate from one topic directly to another
+    isTransitioning = false;
+
     if (Discourse.Mobile.mobileView) {
       // close the dropdowns on mobile
       $('.d-dropdown').hide();
@@ -175,12 +226,15 @@ Discourse.TopicRoute = Discourse.Route.extend({
       showExtraInfo: false
     });
 
+    this.controllerFor('topic-admin-menu').set('model', model);
+
     this.controllerFor('composer').set('topic', model);
     Discourse.TopicTrackingState.current().trackIncoming('all');
     controller.subscribe();
 
+    this.controllerFor('topic-progress').set('model', model);
     // We reset screen tracking every time a topic is entered
-    Discourse.ScreenTrack.current().start(model.get('id'));
+    Discourse.ScreenTrack.current().start(model.get('id'), controller);
   }
 
 });

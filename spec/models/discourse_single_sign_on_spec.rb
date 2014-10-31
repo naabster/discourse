@@ -34,6 +34,18 @@ describe DiscourseSingleSignOn do
     parsed.custom_fields["b.b"].should == "B.b"
   end
 
+  it "can lookup or create user when name is blank" do
+    # so we can create system messages
+    Fabricate(:admin)
+    sso = DiscourseSingleSignOn.new
+    sso.username = "test"
+    sso.name = ""
+    sso.email = "test@test.com"
+    sso.external_id = "A"
+    user = sso.lookup_or_create_user
+    user.should_not == nil
+  end
+
   it "can fill in data on way back" do
     sso = make_sso
 
@@ -75,6 +87,6 @@ describe DiscourseSingleSignOn do
     url.should == @sso_url
 
     sso = DiscourseSingleSignOn.parse(payload)
-    sso.nonce.should_not be_nil
+    sso.nonce.should_not == nil
   end
 end

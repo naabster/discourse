@@ -11,4 +11,4 @@
   </div>
 <% end %>
 
-<p><%= t 'powered_by_html' %></p>
+<% content_for :title do %><%= I18n.t('js.filters.categories.title') %><% end %>

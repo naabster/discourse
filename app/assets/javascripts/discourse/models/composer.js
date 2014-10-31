@@ -74,10 +74,12 @@ Discourse.Composer = Discourse.Model.extend({
         username: this.get('post.username')
       });
 
-      var replyUsername = post.get('reply_to_user.username');
-      var replyAvatarTemplate = post.get('reply_to_user.avatar_template');
-      if (replyUsername && replyAvatarTemplate && this.get('action') === EDIT) {
-        postDescription += " " + I18n.t("post.in_reply_to") + " " + Discourse.Utilities.tinyAvatar(replyAvatarTemplate) + " " + replyUsername;
+      if (!Discourse.Mobile.mobileView) {
+        var replyUsername = post.get('reply_to_user.username');
+        var replyAvatarTemplate = post.get('reply_to_user.avatar_template');
+        if (replyUsername && replyAvatarTemplate && this.get('action') === EDIT) {
+          postDescription += " " + I18n.t("post.in_reply_to") + " " + Discourse.Utilities.tinyAvatar(replyAvatarTemplate) + " " + replyUsername;
+        }
       }
     }
 
@@ -133,9 +135,20 @@ Discourse.Composer = Discourse.Model.extend({
     @property titleLengthValid
   **/
   titleLengthValid: function() {
+    if (Discourse.User.currentProp('admin') && this.get('post.static_doc') && this.get('titleLength') > 0) return true;
     if (this.get('titleLength') < this.get('minimumTitleLength')) return false;
     return (this.get('titleLength') <= Discourse.SiteSettings.max_topic_title_length);
-  }.property('minimumTitleLength', 'titleLength'),
+  }.property('minimumTitleLength', 'titleLength', 'post.static_doc'),
+
+  // The icon for the save button
+  saveIcon: function () {
+    switch (this.get('action')) {
+      case EDIT: return '<i class="fa fa-pencil"></i>';
+      case REPLY: return '<i class="fa fa-reply"></i>';
+      case CREATE_TOPIC: return '<i class="fa fa-plus"></i>';
+      case PRIVATE_MESSAGE: return '<i class="fa fa-envelope"></i>';
+    }
+  }.property('action'),
 
   // The text for the save button
   saveText: function() {
@@ -264,8 +277,36 @@ Discourse.Composer = Discourse.Model.extend({
     @method appendText
     @param {String} text the text to append
   **/
-  appendText: function(text) {
-    this.set('reply', (this.get('reply') || '') + text);
+  appendText: function(text,position,opts) {
+    var reply = (this.get('reply') || '');
+    position = typeof(position) === "number" ? position : reply.length;
+
+    var before = reply.slice(0, position) || '';
+    var after = reply.slice(position) || '';
+
+    var stripped, i;
+
+    if(opts && opts.block){
+      if(before.trim() !== ""){
+        stripped = before.replace(/\r/g, "");
+        for(i=0; i<2; i++){
+          if(stripped[stripped.length - 1 - i] !== "\n"){
+            before += "\n";
+            position++;
+          }
+        }
+      }
+      if(after.trim() !== ""){
+        stripped = after.replace(/\r/g, "");
+        for(i=0; i<2; i++){
+          if(stripped[i] !== "\n"){
+            after = "\n" + after;
+          }
+        }
+      }
+    }
+
+    this.set('reply', before + text + after);
   },
 
   togglePreview: function() {
@@ -274,8 +315,25 @@ Discourse.Composer = Discourse.Model.extend({
   },
 
   importQuote: function() {
+    var postStream = this.get('topic.postStream'),
+        postId = this.get('post.id');
+
+    if (!postId && postStream) {
+      postId = postStream.get('firstPostId');
+    }
+
+    // If we're editing a post, fetch the reply when importing a quote
+    if (this.get('editingPost')) {
+      var replyToPostNumber = this.get('post.reply_to_post_number');
+      if (replyToPostNumber) {
+        var replyPost = postStream.get('posts').findBy('post_number', replyToPostNumber);
+        if (replyPost) {
+          postId = replyPost.get('id');
+        }
+      }
+    }
+
     // If there is no current post, use the post id from the stream
-    var postId = this.get('post.id') || this.get('topic.postStream.firstPostId');
     if (postId) {
       this.set('loading', true);
       var composer = this;
@@ -292,7 +350,7 @@ Discourse.Composer = Discourse.Model.extend({
      opts:
        action   - The action we're performing: edit, reply or createTopic
        post     - The post we're replying to, if present
-       topic   - The topic we're replying to, if present
+       topic    - The topic we're replying to, if present
        quote    - If we're opening a reply from a quote, the quote we're making
   */
   open: function(opts) {
@@ -401,7 +459,7 @@ Discourse.Composer = Discourse.Model.extend({
       var topic = this.get('topic');
       topic.setProperties({
         title: this.get('title'),
-        fancy_title: this.get('title'),
+        fancy_title: Handlebars.Utils.escapeExpression(this.get('title')),
         category_id: parseInt(this.get('categoryId'), 10)
       });
       topic.save();
@@ -415,16 +473,16 @@ Discourse.Composer = Discourse.Model.extend({
     });
     this.set('composeState', CLOSED);
 
-    return Ember.Deferred.promise(function(promise) {
+    return new Ember.RSVP.Promise(function(resolve, reject) {
       post.save(function(result) {
         post.updateFromPost(result);
         composer.clearState();
       }, function(error) {
         var response = $.parseJSON(error.responseText);
         if (response && response.errors) {
-          promise.reject(response.errors[0]);
+          reject(response.errors[0]);
         } else {
-          promise.reject(I18n.t('generic_error'));
+          reject(I18n.t('generic_error'));
         }
         post.set('cooked', oldCooked);
         composer.set('composeState', OPEN);
@@ -446,30 +504,41 @@ Discourse.Composer = Discourse.Model.extend({
       title: this.get('title'),
       category: this.get('categoryId'),
       topic_id: this.get('topic.id'),
-      reply_to_post_number: post ? post.get('post_number') : null,
+      is_warning: this.get('isWarning'),
       imageSizes: opts.imageSizes,
       cooked: this.getCookedHtml(),
       reply_count: 0,
       display_username: currentUser.get('name'),
       username: currentUser.get('username'),
       user_id: currentUser.get('id'),
-      avatar_template: currentUser.get('avatar_template'),
-      metaData: this.get('metaData'),
+      uploaded_avatar_id: currentUser.get('uploaded_avatar_id'),
+      user_custom_fields: currentUser.get('custom_fields'),
       archetype: this.get('archetypeId'),
       post_type: Discourse.Site.currentProp('post_types.regular'),
       target_usernames: this.get('targetUsernames'),
       actions_summary: Em.A(),
       moderator: currentUser.get('moderator'),
+      admin: currentUser.get('admin'),
       yours: true,
       newPost: true,
-      auto_close_time: Discourse.Utilities.timestampFromAutocloseString(this.get('auto_close_time'))
     });
+
+    if(post) {
+      createdPost.setProperties({
+        reply_to_post_number: post.get('post_number'),
+        reply_to_user: {
+          username: post.get('username'),
+          uploaded_avatar_id: post.get('uploaded_avatar_id')
+        }
+      });
+    }
 
     // If we're in a topic, we can append the post instantly.
     if (postStream) {
       // If it's in reply to another post, increase the reply count
       if (post) {
         post.set('reply_count', (post.get('reply_count') || 0) + 1);
+        post.set('replies', []);
       }
       if (!postStream.stagePost(createdPost, currentUser)) {
 
@@ -480,7 +549,7 @@ Discourse.Composer = Discourse.Model.extend({
     }
 
     var composer = this;
-    return Ember.Deferred.promise(function(promise) {
+    return new Ember.RSVP.Promise(function(resolve, reject) {
 
       composer.set('composeState', SAVING);
       createdPost.save(function(result) {
@@ -492,12 +561,18 @@ Discourse.Composer = Discourse.Model.extend({
           // It's no longer a new post
           createdPost.set('newPost', false);
           topic.set('draft_sequence', result.draft_sequence);
+          topic.set('details.auto_close_at', result.topic_auto_close_at);
           postStream.commitPost(createdPost);
           addedToStream = true;
         } else {
           // We created a new topic, let's show it.
           composer.set('composeState', CLOSED);
           saving = false;
+
+          // Update topic_count for the category
+          var category = Discourse.Site.currentProp('categories').find(function(x) { return x.get('id') === (parseInt(createdPost.get('category'),10) || 1); });
+          if (category) category.incrementProperty('topic_count');
+          Discourse.notifyPropertyChange('globalNotice');
         }
 
         composer.clearState();
@@ -509,7 +584,7 @@ Discourse.Composer = Discourse.Model.extend({
           composer.set('composeState', SAVING);
         }
 
-        return promise.resolve({ post: result });
+        return resolve({ post: result });
       }, function(error) {
         // If an error occurs
         if (postStream) {
@@ -530,7 +605,7 @@ Discourse.Composer = Discourse.Model.extend({
         catch(ex) {
           parsedError = "Unknown error saving post, try again. Error: " + error.status + " " + error.statusText;
         }
-        promise.reject(parsedError);
+        reject(parsedError);
       });
     });
   },

@@ -1,17 +1,19 @@
-.category-combobox {
+.category-combobox, .select2-drop {
   .badge-category {
     display: inline-block;
   }
   .topic-count {
     font-size: 11px;
-    color: $secondary_text_color;
+    color: $primary;
     display: inline-block;
   }
-  .highlighted .topic-count {
-    color: $tertiary_text_color;
+  .highlighted .topic-count, .select2-highlighted .category-desc {
+    color: $primary;
   }
   .category-desc {
+    color: scale-color($primary, $lightness: 45%);
     margin: 6px 0 0 3px;
     font-size: 12px;
+    line-height: 16px;
   }
 }

@@ -10,7 +10,7 @@ class EmailValidator < ActiveModel::EachValidator
         record.errors.add(attribute, I18n.t(:'user.email.not_allowed'))
       end
     end
-    if record.errors[attribute].blank? and ScreenedEmail.should_block?(value)
+    if record.errors[attribute].blank? && value && ScreenedEmail.should_block?(value)
       record.errors.add(attribute, I18n.t(:'user.email.blocked'))
     end
   end
@@ -19,6 +19,10 @@ class EmailValidator < ActiveModel::EachValidator
     domains = setting.gsub('.', '\.')
     regexp = Regexp.new("@(#{domains})", true)
     value =~ regexp
+  end
+
+  def self.email_regex
+    /^[a-zA-Z0-9!#\$%&'*+\/=?\^_`{|}~\-]+(?:\.[a-zA-Z0-9!#\$%&'\*+\/=?\^_`{|}~\-]+)*@(?:[a-zA-Z0-9](?:[a-zA-Z0-9\-]*[a-zA-Z0-9])?\.)+[a-zA-Z0-9](?:[a-zA-Z0-9\-]*[a-zA-Z0-9])?$/
   end
 
 end

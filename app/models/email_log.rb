@@ -1,10 +1,9 @@
 class EmailLog < ActiveRecord::Base
   belongs_to :user
-  validates_presence_of :email_type
-  validates_presence_of :to_address
-
   belongs_to :post
   belongs_to :topic
+
+  validates :email_type, :to_address, presence: true
 
   scope :sent,    -> { where(skipped: false) }
   scope :skipped, -> { where(skipped: true) }
@@ -19,7 +18,7 @@ class EmailLog < ActiveRecord::Base
   end
 
   def self.for(reply_key)
-    EmailLog.where(reply_key: reply_key).first
+    EmailLog.find_by(reply_key: reply_key)
   end
 
   def self.last_sent_email_address

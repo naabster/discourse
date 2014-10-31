@@ -42,12 +42,20 @@ module SiteSettingExtension
     @lists ||= []
   end
 
+  def choices
+    @choices ||= {}
+  end
+
   def hidden_settings
     @hidden_settings ||= []
   end
 
   def refresh_settings
     @refresh_settings ||= []
+  end
+
+  def validators
+    @validators ||= {}
   end
 
   def setting(name_arg, default = nil, opts = {})
@@ -60,7 +68,12 @@ module SiteSettingExtension
         enum = opts[:enum]
         enums[name] = enum.is_a?(String) ? enum.constantize : enum
       end
-      if opts[:list]
+      if opts[:choices]
+        choices.has_key?(name) ?
+          choices[name].concat(opts[:choices]) :
+          choices[name] = opts[:choices]
+      end
+      if opts[:type] == 'list'
         lists << name
       end
       if opts[:hidden]
@@ -68,6 +81,10 @@ module SiteSettingExtension
       end
       if opts[:refresh]
         refresh_settings << name
+      end
+
+      if validator_type = validator_for(opts[:type] || get_data_type(name, defaults[name]))
+        validators[name] = {class: validator_type, opts: opts}
       end
 
       current[name] = current_value
@@ -88,7 +105,7 @@ module SiteSettingExtension
 
   def settings_hash
     result = {}
-    @defaults.each do |s, v|
+    @defaults.each do |s, _|
       result[s] = send(s).to_s
     end
     result
@@ -107,16 +124,21 @@ module SiteSettingExtension
   # Retrieve all settings
   def all_settings(include_hidden=false)
     @defaults
-      .reject{|s, v| hidden_settings.include?(s) || include_hidden}
+      .reject{|s, _| hidden_settings.include?(s) || include_hidden}
       .map do |s, v|
         value = send(s)
         type = types[get_data_type(s, value)]
-        {setting: s,
-         description: description(s),
-         default: v,
-         type: type.to_s,
-         value: value.to_s,
-         category: categories[s]}.merge( type == :enum ? {valid_values: enum_class(s).values, translate_names: enum_class(s).translate_names?} : {})
+        opts = {
+          setting: s,
+          description: description(s),
+          default: v.to_s,
+          type: type.to_s,
+          value: value.to_s,
+          category: categories[s]
+        }
+        opts.merge!({valid_values: enum_class(s).values, translate_names: enum_class(s).translate_names?}) if type == :enum
+        opts[:choices] = choices[s] if choices.has_key? s
+        opts
       end
   end
 
@@ -218,6 +240,13 @@ module SiteSettingExtension
       raise Discourse::InvalidParameters.new(:value) unless enum_class(name).valid_value?(val)
     end
 
+    if v = validators[name]
+      validator = v[:class].new(v[:opts])
+      unless validator.valid_value?(val)
+        raise Discourse::InvalidParameters.new(validator.error_message)
+      end
+    end
+
     provider.save(name, val, type)
     current[name] = convert(val, type)
     clear_cache!
@@ -235,8 +264,21 @@ module SiteSettingExtension
     refresh_settings.include?(name.to_sym)
   end
 
+  def filter_value(name, value)
+    # filter domain name
+    if %w[disabled_image_download_domains onebox_domains_whitelist exclude_rel_nofollow_domains email_domains_blacklist email_domains_whitelist white_listed_spam_host_domains].include? name
+      domain_array = []
+      value.split('|').each { |url|
+        domain_array.push(get_hostname(url))
+      }
+      value = domain_array.join("|")
+    end
+    return value
+  end
+
   def set(name, value)
     if has_setting?(name)
+      value = filter_value(name, value)
       self.send("#{name}=", value)
       Discourse.request_refresh! if requires_refresh?(name)
     else
@@ -275,6 +317,8 @@ module SiteSettingExtension
       types[:string]
     when Fixnum
       types[:fixnum]
+    when Float
+      types[:float]
     when TrueClass, FalseClass
       types[:bool]
     else
@@ -284,6 +328,8 @@ module SiteSettingExtension
 
   def convert(value, type)
     case type
+    when types[:float]
+      value.to_f
     when types[:fixnum]
       value.to_i
     when types[:string], types[:list], types[:enum]
@@ -295,6 +341,16 @@ module SiteSettingExtension
     else
       raise ArgumentError.new :type
     end
+  end
+
+  def validator_for(type_name)
+    @validator_mapping ||= {
+      'email'        => EmailSettingValidator,
+      'username'     => UsernameSettingValidator,
+      types[:fixnum] => IntegerSettingValidator,
+      types[:string] => StringSettingValidator
+    }
+    @validator_mapping[type_name]
   end
 
 
@@ -324,6 +380,14 @@ module SiteSettingExtension
 
   def enum_class(name)
     enums[name]
+  end
+
+  def get_hostname(url)
+    unless (URI.parse(url).scheme rescue nil).nil?
+      url = "http://#{url}" if URI.parse(url).scheme.nil?
+      url = URI.parse(url).host
+    end
+    return url
   end
 
 end

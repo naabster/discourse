@@ -1,6 +1,13 @@
 class Admin::GroupsController < Admin::AdminController
   def index
-    groups = Group.order(:name).to_a
+    groups = Group.order(:name)
+    if search = params[:search]
+      search = search.to_s
+      groups = groups.where("name ilike ?", "%#{search}%")
+    end
+    if params[:ignore_automatic].to_s == "true"
+      groups = groups.where(automatic: false)
+    end
     render_serialized(groups, BasicGroupSerializer)
   end
 
@@ -16,12 +23,12 @@ class Admin::GroupsController < Admin::AdminController
   def update
     group = Group.find(params[:id].to_i)
 
+    group.alias_level = params[:group][:alias_level].to_i if params[:group][:alias_level].present?
+
     if group.automatic
       # we can only change the alias level on automatic groups
-      group.alias_level = params[:group][:alias_level]
     else
       group.usernames = params[:group][:usernames]
-      group.alias_level = params[:group][:alias_level]
       group.name = params[:group][:name] if params[:group][:name]
     end
     group.visible = params[:group][:visible] == "true"

@@ -1,10 +1,10 @@
 .topic-list-item td:first-child, .topic-post {
-  background-color: inherit;
   border-left: 1px solid transparent;
 }
 
-.topic-list-item.selected td:first-child, .topic-post.selected {
-  border-left: 1px solid $topic-list-starred-color;
+.topic-list tr.selected td:first-child, .topic-list-item.selected td:first-child, .topic-post.selected {
+  box-shadow: -2px 0 0 $danger;
+  border-left: 1px solid $danger;
 }
 
 .topic-list-item.selected {
@@ -12,13 +12,16 @@
 }
 
 .keyboard-shortcuts-modal .modal-body {
-  max-height: 500px;
+  max-height: 520px;
 }
 
 #keyboard-shortcuts-help {
+  .span6 {
+    width:32%;
+  }
   ul {
     list-style: none;
-    padding-left: 0;
+    margin-left: 0;
 
     li {
       margin: 5px 0
